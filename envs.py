@@ -18,7 +18,9 @@ from skimage.morphology.selem import disk
 
 import vector_utils
 from shortest_paths.shortest_paths import GridGraph
+import matplotlib.pyplot as plt
 
+#myobj = plt.imshow(np.zeros((96,96)), interpolation='none')
 
 class VectorEnv:
     WALL_HEIGHT = 0.1
@@ -49,7 +51,7 @@ class VectorEnv:
             inactivity_cutoff_per_robot=100,
             random_seed=None, use_egl_renderer=False,
             show_gui=False, show_debug_annotations=False, show_occupancy_maps=False,
-            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,
+            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,use_closest_cube_map=False
         ):
 
         ################################################################################
@@ -70,6 +72,7 @@ class VectorEnv:
         self.use_shortest_path_map = use_shortest_path_map
         self.shortest_path_map_scale = shortest_path_map_scale
         self.use_intention_map = use_intention_map
+        self.use_closest_cube_map = use_closest_cube_map
         self.intention_map_encoding = intention_map_encoding
         self.intention_map_scale = intention_map_scale
         self.intention_map_line_thickness = intention_map_line_thickness
@@ -522,8 +525,8 @@ class VectorEnv:
 
         def add_divider(x_offset=0):
             divider_width = 0.05
-            opening_width = 0.16
-            obstacles.append({'type': 'divider', 'position': (x_offset, 0), 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
+            opening_width = 0.09
+            obstacles.append({'type': 'divider', 'position': (x_offset, 0.1), 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
             self.robot_spawn_bounds = (x_offset + divider_width / 2, None, None, None)
             self.cube_spawn_bounds = (None, x_offset - divider_width / 2, None, None)
 
@@ -925,7 +928,7 @@ class Robot(ABC):
         self.mapper.update()
 
     def get_state(self, save_figures=False):
-        return self.mapper.get_state(save_figures=save_figures)
+        return self.mapper.get_state(save_figures=save_figures,id=self.id)
 
     def process_cube_success(self):
         self.cubes += 1
@@ -2064,7 +2067,8 @@ class Mapper:
         if self.global_occupancy_map is not None:
             self.global_occupancy_map.update(points, seg, self.camera.get_seg_value('obstacle'))
 
-    def get_state(self, save_figures=False):
+    def get_state(self, save_figures=False,id=None):
+
         channels = []
 
         # Overhead map
@@ -2086,6 +2090,7 @@ class Mapper:
         if self.env.use_shortest_path_to_receptacle_map:
             global_shortest_path_to_receptacle_map = self._create_global_shortest_path_to_receptacle_map()
             local_shortest_path_to_receptacle_map = self._get_local_distance_map(global_shortest_path_to_receptacle_map)
+            
             channels.append(local_shortest_path_to_receptacle_map)
 
         # Shortest path distance map
@@ -2093,6 +2098,12 @@ class Mapper:
             global_shortest_path_map = self._create_global_shortest_path_map()
             local_shortest_path_map = self._get_local_distance_map(global_shortest_path_map)
             channels.append(local_shortest_path_map)
+        
+        # Shortest path distance map to objects
+        if self.env.use_closest_cube_map: 
+            global_shortest_path_map_ = self._create_global_shortest_path_map_to_closest_cube()
+            local_shortest_path_map_  = self._get_local_distance_map(global_shortest_path_map)
+            #channels.append(local_shortest_path_map)
 
         # History map
         if self.env.use_history_map:
@@ -2104,6 +2115,7 @@ class Mapper:
         if self.env.use_intention_map:
             global_intention_map = self._create_global_intention_or_history_map(encoding=self.env.intention_map_encoding)
             local_intention_map = self._get_local_map(global_intention_map)
+            
             channels.append(local_intention_map)
 
         # Baseline intention channels
@@ -2287,6 +2299,14 @@ class Mapper:
     def _create_global_shortest_path_to_receptacle_map(self):
         assert self.env.receptacle_id is not None
         global_map = self.global_occupancy_map.shortest_path_image(self.env.receptacle_position)
+        '''
+        #for x in local_intention_map: 
+        plt.imshow(global_map,interpolation='none')
+        plt.show(block=False)
+        plt.pause(.001)
+
+
+        '''
         global_map[global_map < 0] = global_map.max()
         global_map *= self.env.shortest_path_map_scale
         return global_map
@@ -2294,10 +2314,30 @@ class Mapper:
     def _create_global_shortest_path_map(self):
         robot_position = self.robot.get_position()
         global_map = self.global_occupancy_map.shortest_path_image(robot_position)
-        global_map[global_map < 0] = global_map.max()
-        global_map *= self.env.shortest_path_map_scale
+        #plt.imshow(global_map,interpolation='none')
+        #plt.show(block=False)
+        #plt.pause(.001)
+        #global_map[global_map < 0] = global_map.max()
+        #global_map *= self.env.shortest_path_map_scale
         return global_map
+    def _create_global_shortest_path_map_to_closest_cube(self): 
+        current_min_distance_from_robot= 10000000000
+        current_closest_cube_id = -1
+        for cube_id in self.env.available_cube_ids_set: 
+            cube_position = self.env.get_cube_position(cube_id) 
+            current_dist = distance(self.robot.get_position(), cube_position)
+            if(current_min_distance_from_robot > current_dist): 
+                current_closest_cube_id = cube_id
+                current_min_distance_from_robot = current_dist
 
+        if(current_closest_cube_id!= -1): 
+            global_map = self.global_occupancy_map.shortest_path_image(self.env.get_cube_position(current_closest_cube_id) )
+        '''
+        plt.imshow(global_map,interpolation='none')
+        plt.show(block=False)
+        plt.pause(.001)
+        '''
+        return global_map 
     def _create_global_intention_or_history_map(self, encoding):
         global_intention_map = self._create_padded_room_zeros()
         for robot in self.env.robots:

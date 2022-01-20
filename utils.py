@@ -168,7 +168,7 @@ def get_env_from_cfg(cfg, **kwargs):
         'use_distance_to_receptacle_map', 'distance_to_receptacle_map_scale',
         'use_shortest_path_to_receptacle_map', 'use_shortest_path_map', 'shortest_path_map_scale',
         'use_intention_map', 'intention_map_encoding', 'use_history_map',
-        'use_intention_channels', 'intention_channel_encoding', 'intention_channel_nonspatial_scale',
+        'use_intention_channels', 'intention_channel_encoding', 'intention_channel_nonspatial_scale','use_closest_cube_map'
     ])
 
     # Rewards
