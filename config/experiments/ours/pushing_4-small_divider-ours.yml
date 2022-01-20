@@ -21,6 +21,7 @@ lifting_pointless_drop_penalty: 0.25
 log_dir: null
 logs_dir: null
 num_cubes: 10
+
 num_input_channels: 5
 obstacle_collision_penalty: 0.25
 partial_rewards_scale: 2.0
@@ -52,4 +53,5 @@ use_shortest_path_map: true
 use_shortest_path_movement: true
 use_shortest_path_partial_rewards: true
 use_shortest_path_to_receptacle_map: true
+use_closest_cube_map: true
 weight_decay: 0.0001

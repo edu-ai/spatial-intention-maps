@@ -2103,7 +2103,7 @@ class Mapper:
         if self.env.use_closest_cube_map: 
             global_shortest_path_map_ = self._create_global_shortest_path_map_to_closest_cube()
             local_shortest_path_map_  = self._get_local_distance_map(global_shortest_path_map)
-            #channels.append(local_shortest_path_map)
+            channels.append(local_shortest_path_map)
 
         # History map
         if self.env.use_history_map:
