@@ -252,7 +252,8 @@ class VectorEnv:
         self._set_awaiting_new_action()
         
         for robot in self.robots: 
-            closest_cube = self.available_cube_ids_set[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in self.available_cube_ids_set])]
+            available_cube_list = list(self.available_cube_ids_set)
+            closest_cube = available_cube_list[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in available_cube_list])]
             if isinstance(robot, PushingRobot):
                     robot.process_closest_cube_position( self.get_cube_position(cube_id))
 
