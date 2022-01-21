@@ -22,7 +22,7 @@ log_dir: null
 logs_dir: null
 num_cubes: 10
 
-num_input_channels: 5
+num_input_channels: 6
 obstacle_collision_penalty: 0.25
 partial_rewards_scale: 2.0
 policy_path: null

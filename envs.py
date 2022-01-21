@@ -250,6 +250,11 @@ class VectorEnv:
         else:
             sim_steps = self._execute_actions()
         self._set_awaiting_new_action()
+        
+        for robot in self.robots: 
+            closest_cube = self.available_cube_ids_set[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in self.available_cube_ids_set])]
+            if isinstance(robot, PushingRobot):
+                    robot.process_closest_cube_position( self.get_cube_position(cube_id))
 
         ################################################################################
         # Process cubes after action execution
@@ -848,6 +853,7 @@ class Robot(ABC):
         self.prev_waypoint_position = None  # For tracking distance traveled over the step
         self.collided_with_obstacle = False
         self.collided_with_robot = False
+        self.previous_distance_to_closest_cube = -1
 
         # Episode stats (robots are recreated every episode)
         self.cumulative_cubes = 0
@@ -961,6 +967,7 @@ class Robot(ABC):
         self.action = None
         self.target_end_effector_position = None
         self.waypoint_positions = None
+        self.previous_distance_to_closest_cube = -1 
         self.waypoint_headings = None
         self.controller.reset()
 
@@ -1086,9 +1093,18 @@ class PushingRobot(Robot):
         if cube_id not in initial_cube_positions:
             return
         cube_position = self.env.get_cube_position(cube_id)
-        dist_closer = self.mapper.distance_to_receptacle(initial_cube_positions[cube_id]) - self.mapper.distance_to_receptacle(cube_position)
+        #takes care whether they pushed the cube closer to the receptacle 
+        dist_closer = self.mapper.distance_to_receptacle(initial_cube_positions[cube_id]) - self.mapper.distance_to_receptacle(cube_position)        
         self.cube_dist_closer += dist_closer
+    
+    def process_closest_cube_position(self,cube_position): 
+        if(self.previous_distance_to_closest_cube != -1  ) : 
+            new_distance   = distance(cube_position,self.get_position()) 
+            dist_closer = self.previous_distance_to_closest_cube  - dist_closer
+            self.cube_dist_closer += dist_closer
+        self.previous_distance_to_closest_cube = distance(cube_position,self.get_position())
 
+        
 class RobotWithHooks(Robot):
     NUM_OUTPUT_CHANNELS = 2
     END_EFFECTOR_DIST_THRESHOLD = VectorEnv.CUBE_WIDTH
