@@ -174,7 +174,7 @@ def get_env_from_cfg(cfg, **kwargs):
     # Rewards
     kwarg_list.extend([
         'use_shortest_path_partial_rewards', 'success_reward', 'partial_rewards_scale',
-        'lifting_pointless_drop_penalty', 'obstacle_collision_penalty', 'robot_collision_penalty',
+        'lifting_pointless_drop_penalty', 'obstacle_collision_penalty', 'robot_collision_penalty','use_reward_for_closest_cube'
     ])
 
     # Misc

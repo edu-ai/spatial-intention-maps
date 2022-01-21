@@ -51,7 +51,7 @@ class VectorEnv:
             inactivity_cutoff_per_robot=100,
             random_seed=None, use_egl_renderer=False,
             show_gui=False, show_debug_annotations=False, show_occupancy_maps=False,
-            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,use_closest_cube_map=False
+            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,use_closest_cube_map=False, use_reward_for_closest_cube = False
         ):
 
         ################################################################################
@@ -63,6 +63,7 @@ class VectorEnv:
         self.room_width = room_width
         self.num_cubes = num_cubes
         self.env_name = env_name
+        
 
         # State representation
         self.use_robot_map = use_robot_map
@@ -80,6 +81,7 @@ class VectorEnv:
         self.use_intention_channels = use_intention_channels
         self.intention_channel_encoding = intention_channel_encoding
         self.intention_channel_nonspatial_scale = intention_channel_nonspatial_scale
+        self.use_reward_for_closest_cube = use_reward_for_closest_cube
 
         # Rewards
         self.use_shortest_path_partial_rewards = use_shortest_path_partial_rewards
@@ -88,6 +90,7 @@ class VectorEnv:
         self.lifting_pointless_drop_penalty = lifting_pointless_drop_penalty
         self.obstacle_collision_penalty = obstacle_collision_penalty
         self.robot_collision_penalty = robot_collision_penalty
+        self.number_of_steps = 0 
 
         # Misc
         self.use_shortest_path_movement = use_shortest_path_movement
@@ -196,7 +199,7 @@ class VectorEnv:
         self.p.resetSimulation()
         self.p.setRealTimeSimulation(0)
         self.p.setGravity(0, 0, -9.8)
-
+        self.number_of_steps = 0 
         # Create env
         self._create_env()
         if self.real:
@@ -235,9 +238,12 @@ class VectorEnv:
         # Setup before action execution
 
         self.store_new_action(action)
+        self.number_of_steps +=1
 
         # Store initial cube positions for pushing partial rewards
+        
         if any(isinstance(robot, PushingRobot) for robot in self.robots):
+            sim_words = 0 
             initial_cube_positions = {}
             for cube_id in self.available_cube_ids_set:
                 initial_cube_positions[cube_id] = self.get_cube_position(cube_id)
@@ -250,12 +256,14 @@ class VectorEnv:
         else:
             sim_steps = self._execute_actions()
         self._set_awaiting_new_action()
-        
-        for robot in self.robots: 
-            available_cube_list = list(self.available_cube_ids_set)
-            closest_cube = available_cube_list[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in available_cube_list])]
-            if isinstance(robot, PushingRobot):
-                    robot.process_closest_cube_position( self.get_cube_position(cube_id))
+
+        #use reward for closest cube to encourage robot to move towards the cube more often
+        if(self.use_reward_for_closest_cube): 
+            for robot in self.robots: 
+                available_cube_list = list(self.available_cube_ids_set)
+                closest_cube = available_cube_list[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in available_cube_list])]
+                if isinstance(robot, PushingRobot):
+                    robot.process_closest_cube_position(self.get_cube_position(cube_id))
 
         ################################################################################
         # Process cubes after action execution
@@ -274,7 +282,7 @@ class VectorEnv:
                 closest_robot = self.robots[np.argmin([distance(robot.get_position(), cube_position) for robot in self.robots])]
 
                 # Process final cube position for pushing partial rewards
-                if isinstance(closest_robot, PushingRobot):
+                if self.number_of_steps%(10*len(self.robots)) == 0 and isinstance(closest_robot, PushingRobot):
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
 
                 # Process cubes that are in the receptacle (cubes were pushed in)
@@ -1096,6 +1104,7 @@ class PushingRobot(Robot):
         cube_position = self.env.get_cube_position(cube_id)
         #takes care whether they pushed the cube closer to the receptacle 
         dist_closer = self.mapper.distance_to_receptacle(initial_cube_positions[cube_id]) - self.mapper.distance_to_receptacle(cube_position)        
+        #print(dist_closer,"hi before ",initial_cube_positions[cube_id], "now ", cube_position)
         self.cube_dist_closer += dist_closer
     
     def process_closest_cube_position(self,cube_position): 
@@ -2311,6 +2320,9 @@ class Mapper:
                 pos_x, pos_y = Mapper.pixel_indices_to_position(i, j, global_map.shape)
                 global_map[i, j] = distance((pos_x, pos_y), self.env.receptacle_position)
         global_map *= self.env.distance_to_receptacle_map_scale
+        plt.imshow(global_map,interpolation='none')
+        plt.show(block=False)
+        plt.pause(.001)
         return global_map
 
     def _create_global_shortest_path_to_receptacle_map(self):
