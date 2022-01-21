@@ -1101,7 +1101,7 @@ class PushingRobot(Robot):
     def process_closest_cube_position(self,cube_position): 
         if(self.previous_distance_to_closest_cube != -1  ) : 
             new_distance   = distance(cube_position,self.get_position()) 
-            dist_closer = self.previous_distance_to_closest_cube  - dist_closer
+            dist_closer = self.previous_distance_to_closest_cube  - new_distance
             self.cube_dist_closer += dist_closer
         self.previous_distance_to_closest_cube = distance(cube_position,self.get_position())
 
