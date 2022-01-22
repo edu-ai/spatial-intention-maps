@@ -158,6 +158,7 @@ class VectorEnv:
 
         # Collections for keeping track of environment state
         self.obstacle_collision_body_b_ids_set = None  # For collision detection
+        self.divider_collision_body_b_ids_set = set([])
         self.robot_collision_body_b_ids_set = None  # For collision detection
         self.available_cube_ids_set = None  # Excludes removed cubes, and cubes that are being lifted, thrown, or rescued
         self.removed_cube_ids_set = None  # Cubes that have been removed
@@ -282,9 +283,11 @@ class VectorEnv:
                 closest_robot = self.robots[np.argmin([distance(robot.get_position(), cube_position) for robot in self.robots])]
 
                 # Process final cube position for pushing partial rewards
-                if self.number_of_steps%(10*len(self.robots)) == 0 and isinstance(closest_robot, PushingRobot):
+                if  isinstance(closest_robot, PushingRobot):
+                    if(closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
+                        self.cube_dist_closer += -0.3
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
-
+                
                 # Process cubes that are in the receptacle (cubes were pushed in)
                 if self.cube_position_in_receptacle(cube_position):
                     closest_robot.process_cube_success()
@@ -472,10 +475,12 @@ class VectorEnv:
         rounded_corner_path = str(Path(__file__).parent / 'assets' / 'rounded_corner.obj')
         self.obstacle_ids = []
         for obstacle in self._get_obstacles(wall_thickness):
+
             if obstacle['type'] == 'corner':
                 obstacle_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_MESH, fileName=rounded_corner_path)
                 obstacle_visual_shape_id = self.p.createVisualShape(pybullet.GEOM_MESH, fileName=rounded_corner_path, rgbaColor=obstacle_color)
             else:
+
                 half_height = VectorEnv.CUBE_WIDTH / 2 if 'low' in obstacle else VectorEnv.WALL_HEIGHT / 2
                 obstacle_half_extents = (obstacle['x_len'] / 2, obstacle['y_len'] / 2, half_height)
                 obstacle_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_BOX, halfExtents=obstacle_half_extents)
@@ -484,6 +489,8 @@ class VectorEnv:
             obstacle_id = self.p.createMultiBody(
                 0, obstacle_collision_shape_id, obstacle_visual_shape_id,
                 (obstacle['position'][0], obstacle['position'][1], VectorEnv.WALL_HEIGHT / 2), heading_to_orientation(obstacle['heading']))
+            if(obstacle['type'] == 'divider'): 
+                self.divider_collision_body_b_ids_set.add(obstacle_id)
             self.obstacle_ids.append(obstacle_id)
 
         # Create target receptacle
@@ -543,6 +550,7 @@ class VectorEnv:
             obstacles.append({'type': 'divider', 'position': (x_offset, 0.1), 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
             self.robot_spawn_bounds = (x_offset + divider_width / 2, None, None, None)
             self.cube_spawn_bounds = (None, x_offset - divider_width / 2, None, None)
+            
 
         def add_tunnels(tunnel_length, x_offset=0, y_offset=0):
             tunnel_width = 0.18
@@ -1004,12 +1012,26 @@ class Robot(ABC):
         self.env.p.changeConstraint(self.cid, jointChildPivot=position, jointChildFrameOrientation=orientation, maxForce=Robot.CONSTRAINT_MAX_FORCE)
         self._last_step_simulation_count = -1
 
+    def check_for_collisions_between_cube_and_divider(self,cube_id,cube_position,initial_cube_positions):
+        collision_body_cube_set = set([cube_id])
+        for body_a_id in collision_body_cube_set:
+            for contact_point in self.env.p.getContactPoints(body_a_id):
+                body_b_id = contact_point[2]
+                if body_b_id in collision_body_cube_set:
+                    continue
+                if body_b_id in self.env.divider_collision_body_b_ids_set and distance(initial_cube_positions[cube_id], cube_position) >0.0001:
+                    return True
+        return False
+                
+                
+
     def check_for_collisions(self):
         for body_a_id in self.collision_body_a_ids_set:
             for contact_point in self.env.p.getContactPoints(body_a_id):
                 body_b_id = contact_point[2]
                 if body_b_id in self.collision_body_a_ids_set:
                     continue
+                
                 if body_b_id in self.env.obstacle_collision_body_b_ids_set:
                     self.collided_with_obstacle = True
                 if body_b_id in self.env.robot_collision_body_b_ids_set:
