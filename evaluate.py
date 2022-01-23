@@ -20,6 +20,7 @@ def run_eval(cfg, num_episodes=20):
     data = [[] for _ in range(num_episodes)]
     episode_count = 0
     state = env.reset()
+    max_num_pushed  = 0 
     while True:
         action = policy.step(state)
         state, _, done, info = env.step(action)
@@ -30,7 +31,7 @@ def run_eval(cfg, num_episodes=20):
         })
         if done:
             episode_count += 1
-            print('Completed {}/{} episodes'.format(episode_count, num_episodes))
+            print('Completed {}/{} episodes number of cubes pushed {}'.format(episode_count, num_episodes,info["total_cubes"]))
             if episode_count >= num_episodes:
                 break
             state = env.reset()

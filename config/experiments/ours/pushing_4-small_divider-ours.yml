@@ -52,6 +52,6 @@ use_predicted_intention_frac: 0.9
 use_shortest_path_map: true
 use_shortest_path_movement: true
 use_shortest_path_partial_rewards: true
-use_shortest_path_to_receptacle_map: true
+use_shortest_path_to_receptacle_map: false
 use_closest_cube_map: true
 weight_decay: 0.0001
