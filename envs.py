@@ -284,7 +284,7 @@ class VectorEnv:
 
                 # Process final cube position for pushing partial rewards
                 if  isinstance(closest_robot, PushingRobot):
-                    if(closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
+                    if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
                         closest_robot.cube_dist_closer += -0.3
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
                 

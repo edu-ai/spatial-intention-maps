@@ -7,7 +7,7 @@ discount_factors:
 - 0.85
 distance_to_receptacle_map_scale: 0.25
 env_name: small_divider
-experiment_name: pushing_4-small_divider-ours
+experiment_name: pushing_4-small_divider-ours-original
 exploration_frac: 0.1
 final_exploration: 0.01
 grad_norm_clipping: 100

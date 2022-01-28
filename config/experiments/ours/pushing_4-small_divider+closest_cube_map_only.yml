@@ -7,7 +7,7 @@ discount_factors:
 - 0.85
 distance_to_receptacle_map_scale: 0.25
 env_name: small_divider
-experiment_name: pushing_4-small_divider-original-cube_reward
+experiment_name: pushing_4-small_divider-ours-closest_cube_map_only
 exploration_frac: 0.1
 final_exploration: 0.01
 grad_norm_clipping: 100
@@ -52,7 +52,7 @@ use_predicted_intention_frac: 0.9
 use_shortest_path_map: true
 use_shortest_path_movement: true
 use_shortest_path_partial_rewards: true
-use_shortest_path_to_receptacle_map: true
-use_reward_for_closest_cube: true
-use_closest_cube_map: false
+use_shortest_path_to_receptacle_map: false
+use_reward_for_closest_cube: false
+use_closest_cube_map: true
 weight_decay: 0.0001
