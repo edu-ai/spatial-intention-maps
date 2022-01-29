@@ -3,4 +3,6 @@ __pycache__
 .ipynb_checkpoints
 *.pth.tar
 logs/
+*.zip
+
 checkpoints/
