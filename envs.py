@@ -153,8 +153,10 @@ class VectorEnv:
         self.obstacle_ids = None
         self.cube_ids = None
         self.receptacle_id = None
+        self.receptacle_ids_list = []
         if not any('rescue_robot' in g for g in self.robot_config):
-            self.receptacle_position = (self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, 0)
+            self.receptacle_position = (VectorEnv.RECEPTACLE_WIDTH / 2-self.room_length / 2 , self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0) #(self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0)
+            self.receptacle_position_list = [ (VectorEnv.RECEPTACLE_WIDTH / 2-self.room_length / 2 , self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0),(self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0)]
 
         # Collections for keeping track of environment state
         self.obstacle_collision_body_b_ids_set = None  # For collision detection
@@ -264,7 +266,7 @@ class VectorEnv:
                 available_cube_list = list(self.available_cube_ids_set)
                 closest_cube = available_cube_list[np.argmin([distance(robot.get_position(), self.get_cube_position(cube_id)) for cube_id in available_cube_list])]
                 if isinstance(robot, PushingRobot):
-                    robot.process_closest_cube_position(self.get_cube_position(cube_id))
+                    robot.process_closest_cube_position(self.get_cube_position(closest_cube))
 
         ################################################################################
         # Process cubes after action execution
@@ -279,7 +281,7 @@ class VectorEnv:
                 self.reset_cube_pose(cube_id, pos_x, pos_y, heading)
                 continue
 
-            if self.receptacle_id is not None:
+            if len(self.receptacle_ids_list) > 0:
                 closest_robot = self.robots[np.argmin([distance(robot.get_position(), cube_position) for robot in self.robots])]
 
                 # Process final cube position for pushing partial rewards
@@ -289,10 +291,11 @@ class VectorEnv:
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
                 
                 # Process cubes that are in the receptacle (cubes were pushed in)
-                if self.cube_position_in_receptacle(cube_position):
-                    closest_robot.process_cube_success()
-                    self.remove_cube(cube_id)
-                    self.available_cube_ids_set.remove(cube_id)
+                for receptacle_position in self.receptacle_position_list: 
+                    if self.cube_position_in_receptacle(cube_position,receptacle_position):
+                        closest_robot.process_cube_success()
+                        self.remove_cube(cube_id)
+                        self.available_cube_ids_set.remove(cube_id)
 
         # Robots that are awaiting new action need an up-to-date map
         for robot in self.robots:
@@ -369,15 +372,33 @@ class VectorEnv:
         self.p.resetBasePositionAndOrientation(cube_id, (0, 0, VectorEnv.REMOVED_BODY_Z), VectorEnv.IDENTITY_QUATERNION)
         self.removed_cube_ids_set.add(cube_id)
 
-    def cube_position_in_receptacle(self, cube_position):
-        assert self.receptacle_id is not None
+    def cube_position_in_receptacle(self, cube_position, receptacle_position ):
+        assert len(self.receptacle_ids_list) > 0 #self.receptacle_id is not None
 
-        half_width = (VectorEnv.RECEPTACLE_WIDTH - VectorEnv.CUBE_WIDTH) / 2
+        #half_width = (VectorEnv.RECEPTACLE_WIDTH - VectorEnv.CUBE_WIDTH) / 2
         #if (self.receptacle_position[0] - half_width < cube_position[0] < self.receptacle_position[0] + half_width and
         #        self.receptacle_position[1] - half_width < cube_position[1] < self.receptacle_position[1] + half_width):
-        if cube_position[0] > self.receptacle_position[0] - half_width and cube_position[1] > self.receptacle_position[1] - half_width:
+        min_x_cube = cube_position[0] - VectorEnv.CUBE_WIDTH/2 
+        max_x_cube = cube_position[0] + VectorEnv.CUBE_WIDTH/2 
+        min_y_cube = cube_position[1] - VectorEnv.CUBE_WIDTH/2 
+        max_y_cube = cube_position[1] + VectorEnv.CUBE_WIDTH/2 
+
+        min_x_receptacle = receptacle_position[0] - VectorEnv.RECEPTACLE_WIDTH/2 
+        max_x_receptacle = receptacle_position[0] + VectorEnv.RECEPTACLE_WIDTH/2 
+        min_y_receptacle = receptacle_position[1] - VectorEnv.RECEPTACLE_WIDTH/2 
+        max_y_receptacle = receptacle_position[1] + VectorEnv.RECEPTACLE_WIDTH/2 
+        
+        min_x_cube_inside = min_x_cube > min_x_receptacle  and min_x_cube < max_x_receptacle 
+        max_x_cube_inside = max_x_cube > min_x_receptacle  and max_x_cube < max_x_receptacle 
+
+        min_y_cube_inside = min_y_cube > min_y_receptacle  and min_y_cube < max_y_receptacle 
+        max_y_cube_inside = max_y_cube > min_y_receptacle  and max_y_cube < max_y_receptacle 
+
+        return min_x_cube_inside and max_x_cube_inside and min_y_cube_inside and max_y_cube_inside
+        #if (cube_position[0] > self.receptacle_position)
+        #if cube_position[0] > self.receptacle_position[0] - half_width and cube_position[1] > self.receptacle_position[1] - half_width:
             # Note: Assumes receptacle is in top right corner
-            return True
+        #    return True
         return False
 
     def get_robot_group_types(self):
@@ -495,13 +516,16 @@ class VectorEnv:
 
         # Create target receptacle
         if not any('rescue_robot' in g for g in self.robot_config):
-            receptacle_color = (1, 87.0 / 255, 89.0 / 255, 1)  # Red
-            receptacle_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_BOX, halfExtents=(0, 0, 0))
-            receptacle_visual_shape_id = self.p.createVisualShape(
-                #pybullet.GEOM_BOX, halfExtents=(VectorEnv.RECEPTACLE_WIDTH / 2, VectorEnv.RECEPTACLE_WIDTH / 2, 0),  # Gets rendered incorrectly in EGL renderer if height is 0
-                pybullet.GEOM_BOX, halfExtents=(VectorEnv.RECEPTACLE_WIDTH / 2, VectorEnv.RECEPTACLE_WIDTH / 2, 0.0001),
-                rgbaColor=receptacle_color, visualFramePosition=(0, 0, 0.0001))
-            self.receptacle_id = self.p.createMultiBody(0, receptacle_collision_shape_id, receptacle_visual_shape_id, self.receptacle_position)
+            for receptacle_position in self.receptacle_position_list:
+                print("hi")
+                receptacle_color = (1, 87.0 / 255, 89.0 / 255, 1)  # Red
+                receptacle_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_BOX, halfExtents=(0, 0, 0))
+                receptacle_visual_shape_id = self.p.createVisualShape(
+                    #pybullet.GEOM_BOX, halfExtents=(VectorEnv.RECEPTACLE_WIDTH / 2, VectorEnv.RECEPTACLE_WIDTH / 2, 0),  # Gets rendered incorrectly in EGL renderer if height is 0
+                    pybullet.GEOM_BOX, halfExtents=(VectorEnv.RECEPTACLE_WIDTH / 2, VectorEnv.RECEPTACLE_WIDTH / 2, 0.0001),
+                    rgbaColor=receptacle_color, visualFramePosition=(0, 0, 0.0001))
+                receptacle_id = self.p.createMultiBody(0, receptacle_collision_shape_id, receptacle_visual_shape_id, receptacle_position)
+                self.receptacle_ids_list.append(receptacle_id)
 
         # Create robots
         self.robot_collision_body_b_ids_set = set()
@@ -548,8 +572,8 @@ class VectorEnv:
             divider_width = 0.05
             opening_width = 0.09
             obstacles.append({'type': 'divider', 'position': (x_offset, 0.1), 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
-            self.robot_spawn_bounds = (x_offset + divider_width / 2, None, None, None)
-            self.cube_spawn_bounds = (None, x_offset - divider_width / 2, None, None)
+            #self.robot_spawn_bounds = (x_offset + divider_width / 2, None, None, None)
+            #self.cube_spawn_bounds = (None, x_offset - divider_width / 2, None, None)
             
 
         def add_tunnels(tunnel_length, x_offset=0, y_offset=0):
@@ -631,7 +655,13 @@ class VectorEnv:
                 (self.room_length / 2, -self.room_width / 2),
                 (-self.room_length / 2, -self.room_width / 2),
             ]):
-            if any('rescue_robot' in g for g in self.robot_config) or distance((x, y), self.receptacle_position) > (1 + 1e-6) * (VectorEnv.RECEPTACLE_WIDTH / 2) * math.sqrt(2):
+            bool_dist_receptacle = False 
+            for receptacle_pos in self.receptacle_position_list: 
+                if(distance((x, y), receptacle_pos) > (1 + 1e-6) * (VectorEnv.RECEPTACLE_WIDTH / 2) * math.sqrt(2)): 
+                    bool_dist_receptacle = True
+                    break 
+
+            if any('rescue_robot' in g for g in self.robot_config) or bool_dist_receptacle:
                 heading = -math.radians(i * 90)
                 offset = rounded_corner_width / math.sqrt(2)
                 adjusted_position = (x + offset * math.cos(heading - math.radians(45)), y + offset * math.sin(heading - math.radians(45)))
@@ -711,10 +741,16 @@ class VectorEnv:
         done = False
         while not done:
             pos_x, pos_y = self._get_random_position(padding=VectorEnv.CUBE_WIDTH / 2, bounds=self.cube_spawn_bounds)
-
+            
             # Only spawn cubes outside of the receptacle
-            if self.receptacle_id is None or not self.cube_position_in_receptacle((pos_x, pos_y)):
+            if len(self.receptacle_ids_list) == 0: 
+                done = True 
+            else: 
                 done = True
+                for receptacle_position in self.receptacle_position_list: 
+                    if(self.cube_position_in_receptacle((pos_x, pos_y),receptacle_position)):
+                        done = False
+                #done = True
         heading = self.room_random_state.uniform(-math.pi, math.pi)
         return pos_x, pos_y, heading
 
@@ -1304,12 +1340,13 @@ class LiftingRobot(RobotWithHooks):
         self.env.p.resetBasePositionAndOrientation(self.cube_id, cube_position, heading_to_orientation(current_heading))
 
         # Update variables and environment state
-        if self.env.cube_position_in_receptacle(cube_position):
-            self.process_cube_success(lifted=True)
-            self.env.remove_cube(self.cube_id)
-        else:
-            self.env.available_cube_ids_set.add(self.cube_id)
-            self.pointless_cube_drop = True
+        for receptacle_position in self.env.receptacle_position_list: 
+            if self.env.cube_position_in_receptacle(cube_position,receptacle_position):
+                self.process_cube_success(lifted=True)
+                self.env.remove_cube(self.cube_id)
+            else:
+                self.env.available_cube_ids_set.add(self.cube_id)
+                self.pointless_cube_drop = True
         self.lift_state = 'ready'
         self.collision_body_a_ids_set.remove(self.cube_id)
         self.env.robot_collision_body_b_ids_set.remove(self.cube_id)
@@ -1384,13 +1421,13 @@ class ThrowingRobot(RobotWithHooks):
         cube_position = self.env.get_cube_position(self.cube_id)
         dist_closer = self.mapper.distance_to_receptacle(self.initial_cube_position) - self.mapper.distance_to_receptacle(cube_position)
         self.cube_dist_closer += dist_closer
-
-        # Update variables and environment state
-        if self.env.cube_position_in_receptacle(cube_position):
-            self.process_cube_success(thrown=True)
-            self.env.remove_cube(self.cube_id)
-        else:
-            self.env.available_cube_ids_set.add(self.cube_id)
+        for receptacle_position in self.env.receptacle_position_list: 
+            # Update variables and environment state
+            if self.env.cube_position_in_receptacle(cube_position,receptacle_position):
+                self.process_cube_success(thrown=True)
+                self.env.remove_cube(self.cube_id)
+            else:
+                self.env.available_cube_ids_set.add(self.cube_id)
         self.cube_id = None
 
 class RescueRobot(RobotWithHooks):
@@ -1951,6 +1988,7 @@ class Camera(ABC):
         self.min_obstacle_id = None
         self.max_obstacle_id = None
         self.receptacle_id = None
+        self.receptacle_ids_list = []
         self.min_cube_id = None
         self.max_cube_id = None
 
@@ -1961,7 +1999,7 @@ class Camera(ABC):
         # Note: This should be called after the environment is fully created
         self.min_obstacle_id = min(self.env.obstacle_ids)
         self.max_obstacle_id = max(self.env.obstacle_ids)
-        self.receptacle_id = self.env.receptacle_id
+        self.receptacle_ids_list = self.env.receptacle_ids_list
         self.min_cube_id = min(self.env.cube_ids)
         self.max_cube_id = max(self.env.cube_ids)
         self._initialized = True
@@ -1998,8 +2036,10 @@ class Camera(ABC):
         seg_raw = np.reshape(images[4], (self.image_pixel_height, self.image_pixel_width))
         seg = Camera.SEG_VALUES['floor'] * (seg_raw == 0).astype(np.float32)
         seg += Camera.SEG_VALUES['obstacle'] * np.logical_and(seg_raw >= self.min_obstacle_id, seg_raw <= self.max_obstacle_id).astype(np.float32)
-        if self.receptacle_id is not None:
-            seg += Camera.SEG_VALUES['receptacle'] * (seg_raw == self.receptacle_id).astype(np.float32)
+        if(len(self.receptacle_ids_list) > 0): 
+            for receptacle_id in self.receptacle_ids_list:
+            #if self.receptacle_id is not None:
+                seg += Camera.SEG_VALUES['receptacle'] * (seg_raw == receptacle_id).astype(np.float32)
         seg += Camera.SEG_VALUES['cube'] * np.logical_and(seg_raw >= self.min_cube_id, seg_raw <= self.max_cube_id).astype(np.float32)
 
         return points, seg
@@ -2099,7 +2139,7 @@ class Mapper:
             assert not self.env.use_distance_to_receptacle_map
             assert not self.env.use_shortest_path_to_receptacle_map
         if self.env.use_distance_to_receptacle_map or self.env.use_shortest_path_to_receptacle_map:
-            assert self.env.receptacle_id is not None
+            assert len(self.env.receptacle_ids_list) > 0 
 
     def update(self):
         # Get new observation
@@ -2247,11 +2287,15 @@ class Mapper:
         return self.global_occupancy_map.shortest_path(source_position, target_position)
 
     def distance_to_receptacle(self, position):
-        assert self.env.receptacle_id is not None
+        assert len(self.env.receptacle_ids_list) > 0 #self.env.receptacle_id is not None
+        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]
+
         if self.env.use_shortest_path_partial_rewards:
+            #closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]
             # Use receptacle as shortest path source for better caching
-            return self._shortest_path_distance(self.env.receptacle_position, position)
-        return distance(position, self.env.receptacle_position)
+            return self._shortest_path_distance(closest_receptacle_position, position)
+
+        return distance(position, closest_receptacle_position)
 
     def _shortest_path_distance(self, source_position, target_position):
         return self.global_occupancy_map.shortest_path_distance(source_position, target_position)
@@ -2335,28 +2379,32 @@ class Mapper:
         return global_robot_map
 
     def _create_global_distance_to_receptacle_map(self):
-        assert self.env.receptacle_id is not None
-        global_map = self._create_padded_room_zeros()
+        assert len(self.env.receptacle_ids_list) > 0 #self.env.receptacle_id is not None
+        position = self.robot.get_position()
+        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        global_map = self._create_padded_room_zeros()        
         for i in range(global_map.shape[0]):
             for j in range(global_map.shape[1]):
                 pos_x, pos_y = Mapper.pixel_indices_to_position(i, j, global_map.shape)
-                global_map[i, j] = distance((pos_x, pos_y), self.env.receptacle_position)
+                global_map[i, j] = distance((pos_x, pos_y), closest_receptacle_position)
         global_map *= self.env.distance_to_receptacle_map_scale
-        plt.imshow(global_map,interpolation='none')
-        plt.show(block=False)
-        plt.pause(.001)
+        #plt.imshow(global_map,interpolation='none')
+        #plt.show(block=False)
+        #plt.pause(.001)
         return global_map
 
     def _create_global_shortest_path_to_receptacle_map(self):
-        assert self.env.receptacle_id is not None
-        global_map = self.global_occupancy_map.shortest_path_image(self.env.receptacle_position)
+        #assert self.env.receptacle_id is not None
+        assert len(self.env.receptacle_ids_list) > 0 
+        position = self.robot.get_position()
+        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        
+        global_map = self.global_occupancy_map.shortest_path_image(closest_receptacle_position)
         '''
         #for x in local_intention_map: 
         plt.imshow(global_map,interpolation='none')
         plt.show(block=False)
         plt.pause(.001)
-
-
         '''
         global_map[global_map < 0] = global_map.max()
         global_map *= self.env.shortest_path_map_scale
