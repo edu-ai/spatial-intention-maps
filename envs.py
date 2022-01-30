@@ -2000,6 +2000,12 @@ class Camera(ABC):
         self.min_obstacle_id = min(self.env.obstacle_ids)
         self.max_obstacle_id = max(self.env.obstacle_ids)
         self.receptacle_ids_list = self.env.receptacle_ids_list
+        if(len(self.receptacle_ids_list)>0): 
+            self.min_receptacle_id = min(self.receptacle_ids_list)
+            self.max_receptacle_id = max(self.receptacle_ids_list)
+        else: 
+            self.min_receptacle_id = -1
+            self.max_receptacle_id = -1
         self.min_cube_id = min(self.env.cube_ids)
         self.max_cube_id = max(self.env.cube_ids)
         self._initialized = True
@@ -2035,11 +2041,15 @@ class Camera(ABC):
         # Construct segmentation
         seg_raw = np.reshape(images[4], (self.image_pixel_height, self.image_pixel_width))
         seg = Camera.SEG_VALUES['floor'] * (seg_raw == 0).astype(np.float32)
+        print("seg 2" , seg.shape)
         seg += Camera.SEG_VALUES['obstacle'] * np.logical_and(seg_raw >= self.min_obstacle_id, seg_raw <= self.max_obstacle_id).astype(np.float32)
+        print("seg 3", seg.shape)
         if(len(self.receptacle_ids_list) > 0): 
-            for receptacle_id in self.receptacle_ids_list:
+            #for receptacle_id in self.receptacle_ids_list:
             #if self.receptacle_id is not None:
-                seg += Camera.SEG_VALUES['receptacle'] * (seg_raw == receptacle_id).astype(np.float32)
+            seg += Camera.SEG_VALUES['receptacle'] *np.logical_and(seg_raw >= self.min_receptacle_id, seg_raw <= self.max_receptacle_id).astype(np.float32)#* (seg_raw == receptacle_id).astype(np.float32)
+
+        print(1/0)
         seg += Camera.SEG_VALUES['cube'] * np.logical_and(seg_raw >= self.min_cube_id, seg_raw <= self.max_cube_id).astype(np.float32)
 
         return points, seg
