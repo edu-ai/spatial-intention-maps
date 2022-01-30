@@ -2041,15 +2041,11 @@ class Camera(ABC):
         # Construct segmentation
         seg_raw = np.reshape(images[4], (self.image_pixel_height, self.image_pixel_width))
         seg = Camera.SEG_VALUES['floor'] * (seg_raw == 0).astype(np.float32)
-        print("seg 2" , seg.shape)
         seg += Camera.SEG_VALUES['obstacle'] * np.logical_and(seg_raw >= self.min_obstacle_id, seg_raw <= self.max_obstacle_id).astype(np.float32)
-        print("seg 3", seg.shape)
         if(len(self.receptacle_ids_list) > 0): 
             #for receptacle_id in self.receptacle_ids_list:
             #if self.receptacle_id is not None:
             seg += Camera.SEG_VALUES['receptacle'] *np.logical_and(seg_raw >= self.min_receptacle_id, seg_raw <= self.max_receptacle_id).astype(np.float32)#* (seg_raw == receptacle_id).astype(np.float32)
-
-        print(1/0)
         seg += Camera.SEG_VALUES['cube'] * np.logical_and(seg_raw >= self.min_cube_id, seg_raw <= self.max_cube_id).astype(np.float32)
 
         return points, seg
