@@ -29,6 +29,7 @@ class VectorEnv:
     IDENTITY_QUATERNION = (0, 0, 0, 1)
     REMOVED_BODY_Z = -1000  # Hide removed bodies 1000 m below
     CUBE_COLOR = (237.0 / 255, 201.0 / 255, 72.0 / 255, 1)  # Yellow
+    CUBE_COLOR_2 = (3.0 / 255, 198.0 / 255, 252.0 / 255, 1)  # Bright Blue
     DEBUG_LINE_COLORS = [
         (78.0 / 255, 121.0 / 255, 167.0 / 255),  # Blue
         (89.0 / 255, 169.0 / 255, 79.0 / 255),  # Green
@@ -270,10 +271,10 @@ class VectorEnv:
 
         ################################################################################
         # Process cubes after action execution
-
+       
         for cube_id in self.available_cube_ids_set.copy():
             cube_position = self.get_cube_position(cube_id)
-
+            
             # Reset out-of-bounds cubes
             if (cube_position[2] > VectorEnv.WALL_HEIGHT + 0.49 * VectorEnv.CUBE_WIDTH or  # On top of obstacle
                     cube_position[2] < 0.4 * VectorEnv.CUBE_WIDTH):  # Inside obstacle (0.4 since dropped cubes can temporarily go into the ground)
@@ -281,22 +282,43 @@ class VectorEnv:
                 self.reset_cube_pose(cube_id, pos_x, pos_y, heading)
                 continue
 
-            if len(self.receptacle_ids_list) > 0:
+            if len(self.receptacle_ids_list) > 0: 
+                '''
+                available_robots = []
+                for robots in self.robots: 
+                    if(isinstance(robots, PushingRobot) and robots.current_receptacle == self.receptacle_chosen[cube_id]): 
+                        available_robots.append(robots)
+                    else: 
+                        available_robots.append(robots)
+                '''
                 closest_robot = self.robots[np.argmin([distance(robot.get_position(), cube_position) for robot in self.robots])]
 
                 # Process final cube position for pushing partial rewards
                 if  isinstance(closest_robot, PushingRobot):
-                    if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
-                        closest_robot.cube_dist_closer += -0.3
+                    #if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
+                    #    closest_robot.cube_dist_closer += -0.3
+                    if(closest_robot.current_receptacle != self.receptacle_chosen[cube_id]): 
+                        closest_robot.cube_dist_closer +=-0.3
+                    
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
-                
-                # Process cubes that are in the receptacle (cubes were pushed in)
-                for receptacle_position in self.receptacle_position_list: 
-                    if self.cube_position_in_receptacle(cube_position,receptacle_position):
-                        closest_robot.process_cube_success()
-                        self.remove_cube(cube_id)
-                        self.available_cube_ids_set.remove(cube_id)
 
+                # Process cubes that are in the receptacle (cubes were pushed in)
+                i = 0 
+                for receptacle_position in self.receptacle_position_list: 
+                    #only process if the box is at the correct receptacle
+                    if self.cube_position_in_receptacle(cube_position,receptacle_position):
+                        #print("inside ", cube_id,self.receptacle_chosen,i,)
+                        if(self.receptacle_chosen[cube_id] == i):
+                            #print("removing ", cube_id)
+                            #print("correct receptacle in")
+                            closest_robot.process_cube_success()
+                            self.remove_cube(cube_id)
+                            self.available_cube_ids_set.remove(cube_id)
+                        else: 
+                            closest_robot.cube_dist_closer+=-0.3
+                        
+                    i+=1
+            
         # Robots that are awaiting new action need an up-to-date map
         for robot in self.robots:
             if robot.awaiting_new_action:
@@ -316,7 +338,7 @@ class VectorEnv:
         # Episode ends after too many steps of inactivity
         done = len(self.removed_cube_ids_set) == self.num_cubes or self.inactivity_steps >= self.inactivity_cutoff
 
-        # Compute per-robot rewards and stats
+        # Compute per-robot rewards aprocess_cube_positionnd stats
         for robot in self.robots:
             if robot.awaiting_new_action or done:
                 robot.compute_rewards_and_stats(done=done)
@@ -516,9 +538,12 @@ class VectorEnv:
 
         # Create target receptacle
         if not any('rescue_robot' in g for g in self.robot_config):
+            i = 0 
             for receptacle_position in self.receptacle_position_list:
                 print("hi")
-                receptacle_color = (1, 87.0 / 255, 89.0 / 255, 1)  # Red
+                receptacle_color = (237.0 / 255, 201.0 / 255, 72.0 / 255, 1) #(1, 87.0 / 255, 89.0 / 255, 1)  # Red
+                if(i == 1): 
+                    receptacle_color = (3.0 / 255, 198.0 / 255, 252.0 / 255, 1) 
                 receptacle_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_BOX, halfExtents=(0, 0, 0))
                 receptacle_visual_shape_id = self.p.createVisualShape(
                     #pybullet.GEOM_BOX, halfExtents=(VectorEnv.RECEPTACLE_WIDTH / 2, VectorEnv.RECEPTACLE_WIDTH / 2, 0),  # Gets rendered incorrectly in EGL renderer if height is 0
@@ -526,6 +551,7 @@ class VectorEnv:
                     rgbaColor=receptacle_color, visualFramePosition=(0, 0, 0.0001))
                 receptacle_id = self.p.createMultiBody(0, receptacle_collision_shape_id, receptacle_visual_shape_id, receptacle_position)
                 self.receptacle_ids_list.append(receptacle_id)
+                i+=1
 
         # Create robots
         self.robot_collision_body_b_ids_set = set()
@@ -534,12 +560,21 @@ class VectorEnv:
         self.robot_groups = [[] for _ in range(len(self.robot_config))]  # Grouped list
         for robot_group_index, g in enumerate(self.robot_config):
             robot_type, count = next(iter(g.items()))
+            if(robot_type == "pushing_robot"): 
+                current_receptacle = 0 
             for _ in range(count):
                 if self.real:
                     real_robot_index = self.real_robot_indices[len(self.robots)]
                     robot = Robot.get_robot(robot_type, self, robot_group_index, real=True, real_robot_index=real_robot_index)
                 else:
                     robot = Robot.get_robot(robot_type, self, robot_group_index)
+                if(robot_type == "pushing_robot"): 
+                    if(current_receptacle%2 == 0): 
+
+                        robot.current_receptacle = 0 
+                    else: 
+                        robot.current_receptacle = 1 
+                    current_receptacle +=1 
                 self.robots.append(robot)
                 self.robot_groups[robot_group_index].append(robot)
                 self.robot_ids.append(robot.id)
@@ -547,12 +582,23 @@ class VectorEnv:
         # Create cubes
         cube_half_extents = (VectorEnv.CUBE_WIDTH / 2, VectorEnv.CUBE_WIDTH / 2, VectorEnv.CUBE_WIDTH / 2)
         cube_collision_shape_id = self.p.createCollisionShape(pybullet.GEOM_BOX, halfExtents=cube_half_extents)
-        cube_visual_shape_id = self.p.createVisualShape(pybullet.GEOM_BOX, halfExtents=cube_half_extents, rgbaColor=VectorEnv.CUBE_COLOR)
+        cube_visual_shape_id_for_receptacle_1 = self.p.createVisualShape(pybullet.GEOM_BOX, halfExtents=cube_half_extents, rgbaColor=VectorEnv.CUBE_COLOR)
+        cube_visual_shape_id_for_receptacle_2 = self.p.createVisualShape(pybullet.GEOM_BOX, halfExtents=cube_half_extents, rgbaColor=VectorEnv.CUBE_COLOR_2)
+        
         cube_mass = 0.024  # 24 g
         self.cube_ids = []
+        self.receptacle_chosen = {}
+        current_receptacle = 0 
         for _ in range(self.num_cubes):
-            cube_id = self.p.createMultiBody(cube_mass, cube_collision_shape_id, cube_visual_shape_id)
+            if(current_receptacle%2 == 0 ): 
+
+                cube_id = self.p.createMultiBody(cube_mass, cube_collision_shape_id, cube_visual_shape_id_for_receptacle_1)
+                self.receptacle_chosen[cube_id] = 0
+            else: 
+                cube_id = self.p.createMultiBody(cube_mass, cube_collision_shape_id, cube_visual_shape_id_for_receptacle_2)
+                self.receptacle_chosen[cube_id] = 1
             self.cube_ids.append(cube_id)
+            current_receptacle+=1
 
         # Initialize collections
         self.obstacle_collision_body_b_ids_set = set(self.obstacle_ids)
@@ -2403,8 +2449,10 @@ class Mapper:
         #assert self.env.receptacle_id is not None
         assert len(self.env.receptacle_ids_list) > 0 
         position = self.robot.get_position()
-        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
-        
+        if(isinstance(self.robot,PushingRobot)): 
+            closest_receptacle_position = self.env.receptacle_position_list[self.robot.current_receptacle]#self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        else: 
+            closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]   
         global_map = self.global_occupancy_map.shortest_path_image(closest_receptacle_position)
         '''
         #for x in local_intention_map: 
@@ -2428,7 +2476,16 @@ class Mapper:
     def _create_global_shortest_path_map_to_closest_cube(self): 
         current_min_distance_from_robot= 10000000000
         current_closest_cube_id = -1
-        for cube_id in self.env.available_cube_ids_set: 
+        available_cubes = []
+
+        for cube_id in self.env.available_cube_ids_set:  
+            if(isinstance(self.robot,PushingRobot)): 
+                if(self.env.receptacle_chosen[cube_id] == self.robot.current_receptacle): 
+                    available_cubes.append(cube_id)
+            else: 
+                available_cubes.append(cube_id)
+
+        for cube_id in available_cubes:#self.env.available_cube_ids_set: 
             cube_position = self.env.get_cube_position(cube_id) 
             current_dist = distance(self.robot.get_position(), cube_position)
             if(current_min_distance_from_robot > current_dist): 
