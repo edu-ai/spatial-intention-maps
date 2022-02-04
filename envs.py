@@ -62,6 +62,7 @@ class VectorEnv:
         self.room_length = room_length
         self.room_width = room_width
         self.num_cubes = num_cubes
+        self.max_cubes_per_recptacle  = math.ceil(self.num_cubes/2) 
         self.env_name = env_name
         
 
@@ -155,9 +156,9 @@ class VectorEnv:
         self.receptacle_id = None
         self.receptacle_ids_list = []
         if not any('rescue_robot' in g for g in self.robot_config):
-            self.receptacle_position = (VectorEnv.RECEPTACLE_WIDTH / 2-self.room_length / 2 , self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0) #(self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0)
+            #self.receptacle_position = (VectorEnv.RECEPTACLE_WIDTH / 2-self.room_length / 2 , self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0) #(self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0)
             self.receptacle_position_list = [ (VectorEnv.RECEPTACLE_WIDTH / 2-self.room_length / 2 , self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0),(self.room_length / 2 - VectorEnv.RECEPTACLE_WIDTH / 2, self.room_width / 2 - VectorEnv.RECEPTACLE_WIDTH , 0)]
-
+            self.num_cubes_per_receptacle = [0,0]
         # Collections for keeping track of environment state
         self.obstacle_collision_body_b_ids_set = None  # For collision detection
         self.divider_collision_body_b_ids_set = set([])
@@ -291,12 +292,15 @@ class VectorEnv:
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
                 
                 # Process cubes that are in the receptacle (cubes were pushed in)
+                i = 0
                 for receptacle_position in self.receptacle_position_list: 
-                    if self.cube_position_in_receptacle(cube_position,receptacle_position):
+                    if self.cube_position_in_receptacle(cube_position,receptacle_position) and self.num_cubes_per_receptacle[i] < self.max_cubes_per_recptacle:
                         closest_robot.process_cube_success()
                         self.remove_cube(cube_id)
                         self.available_cube_ids_set.remove(cube_id)
-
+                        self.num_cubes_per_receptacle[i]+=1
+                    i+=1
+                
         # Robots that are awaiting new action need an up-to-date map
         for robot in self.robots:
             if robot.awaiting_new_action:
@@ -322,7 +326,7 @@ class VectorEnv:
                 robot.compute_rewards_and_stats(done=done)
 
         ################################################################################
-        # Compute items to return
+        # Compute items to return/
 
         state = [[None for _ in g] for g in self.robot_groups] if done else self.get_state()
         reward = [[robot.reward if (robot.awaiting_new_action or done) else None for robot in robot_group] for robot_group in self.robot_groups]
@@ -2403,9 +2407,13 @@ class Mapper:
         #assert self.env.receptacle_id is not None
         assert len(self.env.receptacle_ids_list) > 0 
         position = self.robot.get_position()
-        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
-        
+        closest_receptacle_position_index = np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])
+        if(self.env.num_cubes_per_receptacle[closest_receptacle_position_index] < self.env.max_cubes_per_recptacle): 
+            closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        else: 
+            closest_receptacle_position = self.env.receptacle_position_list[1-closest_receptacle_position_index]
         global_map = self.global_occupancy_map.shortest_path_image(closest_receptacle_position)
+
         '''
         #for x in local_intention_map: 
         plt.imshow(global_map,interpolation='none')
