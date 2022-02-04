@@ -297,9 +297,8 @@ class VectorEnv:
                 if  isinstance(closest_robot, PushingRobot):
                     #if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
                     #    closest_robot.cube_dist_closer += -0.3
-                    if(closest_robot.current_receptacle != self.receptacle_chosen[cube_id]): 
-                        closest_robot.cube_dist_closer +=-0.3
-                    
+                    #if(closest_robot.current_receptacle != self.receptacle_chosen[cube_id]): 
+                    #    closest_robot.cube_dist_closer +=-0.3
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
 
                 # Process cubes that are in the receptacle (cubes were pushed in)
@@ -314,8 +313,8 @@ class VectorEnv:
                             closest_robot.process_cube_success()
                             self.remove_cube(cube_id)
                             self.available_cube_ids_set.remove(cube_id)
-                        else: 
-                            closest_robot.cube_dist_closer+=-0.3
+                        #else: 
+                        #    closest_robot.cube_dist_closer+=-0.3
                         
                     i+=1
             
@@ -2449,10 +2448,10 @@ class Mapper:
         #assert self.env.receptacle_id is not None
         assert len(self.env.receptacle_ids_list) > 0 
         position = self.robot.get_position()
-        if(isinstance(self.robot,PushingRobot)): 
-            closest_receptacle_position = self.env.receptacle_position_list[self.robot.current_receptacle]#self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
-        else: 
-            closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]   
+        #if(isinstance(self.robot,PushingRobot)): 
+        #    closest_receptacle_position = self.env.receptacle_position_list[self.robot.current_receptacle]#self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        #else: 
+        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]   
         global_map = self.global_occupancy_map.shortest_path_image(closest_receptacle_position)
         '''
         #for x in local_intention_map: 
@@ -2478,14 +2477,16 @@ class Mapper:
         current_closest_cube_id = -1
         available_cubes = []
 
+        '''
         for cube_id in self.env.available_cube_ids_set:  
             if(isinstance(self.robot,PushingRobot)): 
                 if(self.env.receptacle_chosen[cube_id] == self.robot.current_receptacle): 
                     available_cubes.append(cube_id)
             else: 
                 available_cubes.append(cube_id)
+        '''
 
-        for cube_id in available_cubes:#self.env.available_cube_ids_set: 
+        for cube_id in self.env.available_cube_ids_set: 
             cube_position = self.env.get_cube_position(cube_id) 
             current_dist = distance(self.robot.get_position(), cube_position)
             if(current_min_distance_from_robot > current_dist): 
