@@ -30,7 +30,7 @@ def run_eval(cfg, num_episodes=20):
         })
         if done:
             episode_count += 1
-            print('Completed {}/{} episodes number of cubes:{} '.format(episode_count, num_episodes,info["total_cubes"]))
+            print('Completed {}/{} ||| episodes number of cubes:{} ||| total number of cubes per receptacle: {}'.format(episode_count, num_episodes,info["total_cubes"], info["total_num_cubes_per_receptacle"]))
             if episode_count >= num_episodes:
                 break
             state = env.reset()

@@ -204,6 +204,7 @@ class VectorEnv:
         self.p.setRealTimeSimulation(0)
         self.p.setGravity(0, 0, -9.8)
         self.number_of_steps = 0 
+        self.num_cubes_per_receptacle = [0,0]
         # Create env
         self._create_env()
         if self.real:
@@ -342,6 +343,7 @@ class VectorEnv:
             'total_cubes': sum(robot.cumulative_cubes for robot in self.robots),
             'total_obstacle_collisions': sum(robot.cumulative_obstacle_collisions for robot in self.robots),
             'total_robot_collisions': sum(robot.cumulative_robot_collisions for robot in self.robots),
+            'total_num_cubes_per_receptacle': self.num_cubes_per_receptacle 
         }
 
         return state, reward, done, info
