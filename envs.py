@@ -288,8 +288,8 @@ class VectorEnv:
 
                 # Process final cube position for pushing partial rewards
                 if  isinstance(closest_robot, PushingRobot):
-                    if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
-                        closest_robot.cube_dist_closer += -0.3
+                    #if(self.use_reward_for_closest_cube and closest_robot.check_for_collisions_between_cube_and_divider(cube_id,cube_position,initial_cube_positions)): 
+                    #    closest_robot.cube_dist_closer += -0.3
                     closest_robot.process_cube_position(cube_id, initial_cube_positions)
                 
                 # Process cubes that are in the receptacle (cubes were pushed in)
@@ -2300,8 +2300,15 @@ class Mapper:
 
     def distance_to_receptacle(self, position):
         assert len(self.env.receptacle_ids_list) > 0 #self.env.receptacle_id is not None
-        closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]
 
+        #closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]
+        closest_receptacle_position_index = np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])
+        
+        if(self.env.num_cubes_per_receptacle[closest_receptacle_position_index] < self.env.max_cubes_per_recptacle): 
+            closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]        
+        else: 
+            closest_receptacle_position = self.env.receptacle_position_list[1-closest_receptacle_position_index]
+        
         if self.env.use_shortest_path_partial_rewards:
             #closest_receptacle_position = self.env.receptacle_position_list[np.argmin([distance(position,receptacle_pos) for receptacle_pos in self.env.receptacle_position_list])]
             # Use receptacle as shortest path source for better caching
