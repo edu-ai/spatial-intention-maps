@@ -20,6 +20,7 @@ def run_eval(cfg, num_episodes=20):
     data = [[] for _ in range(num_episodes)]
     episode_count = 0
     state = env.reset()
+    current_ratios = [] 
     while True:
         action = policy.step(state)
         state, _, done, info = env.step(action)
@@ -29,6 +30,11 @@ def run_eval(cfg, num_episodes=20):
             'robot_collisions': info['total_robot_collisions'],
         })
         if done:
+            if(info[info["total_num_cubes_per_receptacle"])[1] != 0): 
+                current_ratio = [info["total_num_cubes_per_receptacle"])[0]/info["total_num_cubes_per_receptacle"])[1]]
+            else: 
+                current_ratio = 0
+            current_ratios.append(current_ratio)
             episode_count += 1
             print('Completed {}/{} ||| episodes number of cubes:{} ||| total number of cubes per receptacle: {}'.format(episode_count, num_episodes,info["total_cubes"], info["total_num_cubes_per_receptacle"]))
             if episode_count >= num_episodes:
@@ -36,7 +42,7 @@ def run_eval(cfg, num_episodes=20):
             state = env.reset()
     env.close()
 
-    return data
+    return data,current_ratios
 
 def main(args):
     config_path = args.config_path
@@ -47,11 +53,13 @@ def main(args):
     cfg = utils.load_config(config_path)
     eval_dir = utils.get_eval_dir()
     eval_path = eval_dir / '{}.npy'.format(cfg.run_name)
-    data = run_eval(cfg)
+    data,ratios = run_eval(cfg)
     if not eval_dir.exists():
         eval_dir.mkdir(parents=True, exist_ok=True)
     np.save(eval_path, np.array(data, dtype=object))
-    print(eval_path)
+    eval_path = eval_dir / '{}_ratio.npy'.format(cfg.run_name)
+    np.save(eval_path, np.array(ratios, dtype=object))
+    print(eval_path,ratios,sum(ratios)/len(ratios))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config-path')
