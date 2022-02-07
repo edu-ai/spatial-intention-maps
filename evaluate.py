@@ -30,8 +30,8 @@ def run_eval(cfg, num_episodes=20):
             'robot_collisions': info['total_robot_collisions'],
         })
         if done:
-            if(info[info["total_num_cubes_per_receptacle"])[1] != 0): 
-                current_ratio = [info["total_num_cubes_per_receptacle"])[0]/info["total_num_cubes_per_receptacle"])[1]]
+            if(info["total_num_cubes_per_receptacle"][1] != 0): 
+                current_ratio = [info["total_num_cubes_per_receptacle"][0]/info["total_num_cubes_per_receptacle"][1]]
             else: 
                 current_ratio = 0
             current_ratios.append(current_ratio)
