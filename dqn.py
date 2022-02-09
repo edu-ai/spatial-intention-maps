@@ -1,3 +1,7 @@
+
+import os
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
+
 from machin.frame.algorithms import DQN
 from machin.utils.logging import default_logger as logger
 import torch as t
