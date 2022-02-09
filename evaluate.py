@@ -30,11 +30,10 @@ def run_eval(cfg, num_episodes=20):
             'robot_collisions': info['total_robot_collisions'],
         })
         if done:
-            #if(info["total_num_cubes_per_receptacle"][1] != 0): 
-            #    current_ratio = info#[info["total_num_cubes_per_receptacle"][0]/info["total_num_cubes_per_receptacle"][1]]
-            #else: 
-            #    current_ratio = 0
-            current_ratio = info["total_num_cubes_per_receptacle"]
+            if(info["total_num_cubes_per_receptacle"][1] != 0): 
+                current_ratio = [info["total_num_cubes_per_receptacle"][0]/info["total_num_cubes_per_receptacle"][1]]
+            else: 
+                current_ratio = 0
             current_ratios.append(current_ratio)
             episode_count += 1
             print('Completed {}/{} ||| episodes number of cubes:{} ||| total number of cubes per receptacle: {}'.format(episode_count, num_episodes,info["total_cubes"], info["total_num_cubes_per_receptacle"]))
@@ -60,7 +59,7 @@ def main(args):
     np.save(eval_path, np.array(data, dtype=object))
     eval_path = eval_dir / '{}_ratio.npy'.format(cfg.run_name)
     np.save(eval_path, np.array(ratios, dtype=object))
-    print(eval_path,ratios)
+    print(eval_path,ratios,sum(ratios)/len(ratios))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config-path')
