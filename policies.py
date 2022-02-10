@@ -47,7 +47,6 @@ class DQNPolicy:
     def step(self, state, exploration_eps=None, debug=False):
         if exploration_eps is None:
             exploration_eps = self.cfg.final_exploration
-
         action = [[None for _ in g] for g in state]
         output = [[None for _ in g] for g in state]
         with torch.no_grad():
@@ -66,7 +65,6 @@ class DQNPolicy:
                         output[i][j] = o.cpu().numpy()
                 if self.train:
                     self.policy_nets[i].train()
-
         if debug:
             info = {'output': output}
             return action, info
