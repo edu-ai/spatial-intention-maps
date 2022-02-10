@@ -4,7 +4,7 @@ import random
 import os
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
 os.environ['MKL_NUM_THREADS'] = '1'  # pylint: disable=wrong-import-position
-
+import random
 from machin.frame.algorithms import DQN
 from machin.utils.logging import default_logger as logger
 import torch as t

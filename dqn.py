@@ -30,6 +30,31 @@ solved_reward = 190
 solved_repeat = 5
 '''
 
+
+class TransitionTracker:
+    def __init__(self, initial_state):
+        self.num_buffers = len(initial_state)
+        self.prev_state = initial_state
+        self.prev_action = [[None for _ in g] for g in self.prev_state]
+
+    def update_action(self, action):
+        for i, g in enumerate(action):
+            for j, a in enumerate(g):
+                if a is not None:
+                    self.prev_action[i][j] = a
+
+    def update_step_completed(self, reward, state, done):
+        transitions_per_buffer = [[] for _ in range(self.num_buffers)]
+        for i, g in enumerate(state):
+            for j, s in enumerate(g):
+                if s is not None or done:
+                    if self.prev_state[i][j] is not None:
+                        transition = (self.prev_state[i][j], self.prev_action[i][j], reward[i][j], s)
+                        transitions_per_buffer[i].append(transition)
+                    self.prev_state[i][j] = s
+        return transitions_per_buffer
+
+
 # model definition
 class QNet(nn.Module):
     def __init__(self, num_input_channels=3, num_output_channels=1):
@@ -59,14 +84,14 @@ def apply_transform(s):
     transform = transforms.ToTensor()
     return transform(s).unsqueeze(0)
 
-def step(state,cfg,env,dqn,device,exploration_eps=None):
+def step(state,cfg,dqn,exploration_eps=None):
     if exploration_eps is None:
             exploration_eps = cfg.final_exploration
 
     action_n = [[None for _ in g] for g in state]
     
     with t.no_grad():
-        tmp_observations = [[None for _ in g] for g in state]
+        #tmp_observations = [[None for _ in g] for g in state]
         for i, g in enumerate(state):
             for j, s in enumerate(g):                
                 if s is not None:
@@ -81,9 +106,11 @@ def step(state,cfg,env,dqn,device,exploration_eps=None):
                     #else:
                     #    a = o.view(1, -1).max(1)[1].item()
                     action_n[i][j] = action
-                    action_to_insert = t.tensor(action, dtype=t.long).to(device).view(1,-1)
-                    tmp_observations[i][j] = {"state": {"state": old_state},"action": {"action": action_to_insert},}
+                    #action_to_insert = t.tensor(action, dtype=t.long).to(device).view(1,-1)
+                    #tmp_observations[i][j] = {"state": {"state": old_state},"action": {"action": action_to_insert},}
             dqn.qnet.train()    
+        return action_n
+        '''
         new_state, reward, terminal, _ = env.step(action_n)
         buffer_tmp = []
         for i, g in enumerate(new_state):
@@ -103,6 +130,7 @@ def step(state,cfg,env,dqn,device,exploration_eps=None):
             dqn.store_episode(buffer_tmp)
             print("replay buffer length",len(dqn.replay_buffer.storage))
         return new_state,terminal
+        '''
         #state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
         #total_reward += reward
     
@@ -141,14 +169,15 @@ def main(cfg):
         checkpoint = t.load(cfg.checkpoint_path)
         start_timestep = checkpoint['timestep']
         episode = checkpoint['episode']
-        dqn.qnet_optim.load_state_dict(checkpoint['optimizers'][i])
-        dqn.replay_buffer.storage.data = checkpoint['replay_buffers'][i]
+        dqn.qnet_optim.load_state_dict(checkpoint['optimizers'])
+        dqn.replay_buffer = checkpoint['replay_buffers']
     
 
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
     
     state = env.reset()
+    transition_tracker = TransitionTracker(state)
 
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
         # Select an action for each robot
@@ -159,7 +188,18 @@ def main(cfg):
         #terminal = False
         #state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
-        state,done = step(state,cfg,env,dqn,device,exploration_eps)
+        action_n = step(state,cfg,dqn,exploration_eps)
+
+        transition_tracker.update_action(action_n)
+
+        # Step the simulation
+        state, reward, done, info = env.step(action_n)
+
+        # Store in buffers
+        transitions_per_buffer = transition_tracker.update_step_completed(reward, state, done)
+        for i, transitions in enumerate(transitions_per_buffer):
+            for transition in transitions:
+                dqn.replay_buffer.push(*transition)
 
         if done:
             state = env.reset()
@@ -194,7 +234,7 @@ def main(cfg):
                 'timestep': timestep + 1,
                 'episode': episode,
                 'optimizers': dqn.qnet_optim.state_dict() ,
-                'replay_buffers': dqn.replay_buffer.storage.data,
+                'replay_buffers': dqn.replay_buffer,
             }
             
             t.save(checkpoint, str(checkpoint_path))
