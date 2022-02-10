@@ -1,5 +1,5 @@
 import argparse
-
+import random
 # Prevent numpy from using up all cpu
 import os
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
@@ -73,7 +73,6 @@ def run_eval(cfg, num_episodes=20):
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
     q_net = QNet(cfg.num_input_channels, 1).to(device)  
     q_net_t = QNet(cfg.num_input_channels, 1).to(device)  
-    
     if cfg.checkpoint_path is not None:
         print("loading",cfg.policy_path)
         policy_checkpoint = t.load(cfg.policy_path, map_location=device)   
@@ -93,7 +92,9 @@ def run_eval(cfg, num_episodes=20):
     data = [[] for _ in range(num_episodes)]
     episode_count = 0
     state = env.reset()
-    current_ratios = [] 
+    current_ratios = []
+
+    print("starting",cfg.checkpoint_path) 
     while True:
         action = step(state,cfg,dqn)
         state, _, done, info = env.step(action)

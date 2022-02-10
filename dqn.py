@@ -101,6 +101,7 @@ def step(state,cfg,env,dqn,device,exploration_eps=None):
         if(len(buffer_tmp)>0):
             #print(buffer_tmp[0]["action"])
             dqn.store_episode(buffer_tmp)
+            print("replay buffer length",len(dqn.replay_buffer.storage))
         return new_state,terminal
         #state = t.tensor(state, dtype=t.float32).view(1, observe_dim)
         #total_reward += reward
