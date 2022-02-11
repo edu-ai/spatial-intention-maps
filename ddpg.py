@@ -26,6 +26,31 @@ action_dim = 1
 action_low = -1 
 action_high = 1
 
+class TransitionTracker:
+    def __init__(self, initial_state):
+        self.num_buffers = len(initial_state)
+        self.prev_state = initial_state
+        self.prev_action = [[None for _ in g] for g in self.prev_state]
+
+    def update_action(self, action):
+        for i, g in enumerate(action):
+            for j, a in enumerate(g):
+                if a is not None:
+                    self.prev_action[i][j] = a
+
+    def update_step_completed(self, reward, state, done):
+        transitions_per_buffer = [[] for _ in range(self.num_buffers)]
+        for i, g in enumerate(state):
+            for j, s in enumerate(g):
+                if s is not None or done:
+                    if self.prev_state[i][j] is not None:
+                        transition = (self.prev_state[i][j], self.prev_action[i][j], reward[i][j], s)
+                        transitions_per_buffer[i].append(transition)
+                    self.prev_state[i][j] = s
+        return transitions_per_buffer
+
+
+
 class OUNoise(object):
     def __init__(self, action_dim,low,high, mu=0.0, theta=0.15, max_sigma=0.3, min_sigma=0.3, decay_period=100000):
         self.mu           = mu
