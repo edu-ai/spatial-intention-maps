@@ -83,40 +83,89 @@ class OUNoise(object):
 class Actor(nn.Module):
     def __init__(self, num_input_channels=3, num_output_channels=1, action_range=1):
         super().__init__()
+        '''
         self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)
-        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
         self.action_range = action_range
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(128, 1)
+        self.fc = nn.Linear(512, 1)
+        '''
+        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)
+        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
+        self.bn1 = nn.BatchNorm2d(128)
+        self.conv2 = nn.Conv2d(128, 32, kernel_size=1, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(32,1)
+
 
 
     def forward(self, state):
+        '''
         state = self.resnet18.features(state)
-        state = self.conv1(state)
         state = self.avgpool(state)
         state = state.view(state.size(0), -1)
         state = t.tanh(self.fc(state)) * self.action_range
+        '''
+        state = self.resnet18.features(state)
+        state = self.conv1(state)
+        state = self.bn1(state)
+        state = F.relu(state)
+        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = self.conv2(state)
+        state = self.bn2(state)
+        state = F.relu(state)
+        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = self.conv3(state)
+        state = self.avgpool(state) 
+        state = state.view(state.size(0), -1)
+        state = t.tanh(self.fc(state)) * self.action_range
+
         return state
 
 
 class Critic(nn.Module):
     def __init__(self, num_input_channels, action_dim):
         super().__init__()
-        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels) 
-        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
+        '''
+        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)        
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(128+1, 64)
-        self.fc2 = nn.Linear(64, 1)
+        self.fc1 = nn.Linear(512+1, 256)
+        self.fc2 = nn.Linear(256, 1)
+        '''
+        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)
+        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
+        self.bn1 = nn.BatchNorm2d(128)
+        self.conv2 = nn.Conv2d(128, 32, kernel_size=1, stride=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc1 = nn.Linear(32+1,1)
 
     def forward(self, state, action):
+        '''
         state = self.resnet18.features(state)
-        state = self.conv1(state)
         state = self.avgpool(state)
-        state = state.view(state.size(0),-1)
+        state = state.view(state.size(0), -1)
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = self.fc2(q)
         return q
+        '''
+        state = self.resnet18.features(state)
+        state = self.conv1(state)
+        state = self.bn1(state)
+        state = F.relu(state)
+        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = self.conv2(state)
+        state = self.bn2(state)
+        state = F.relu(state)
+        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = self.conv3(state)
+        state = self.avgpool(state) 
+        state = state.view(state.size(0), -1)
+        state_action = t.cat([state, action], 1)
+        return self.fc1(state_action)
 
 
 
