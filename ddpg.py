@@ -19,7 +19,7 @@ import dill
 from envs import VectorEnv
 from torchvision import transforms
 from tqdm import tqdm 
-
+import copy
 # configurations
 
 action_dim = 1
@@ -84,13 +84,15 @@ class Actor(nn.Module):
     def __init__(self, num_input_channels=3, num_output_channels=1, action_range=1):
         super().__init__()
         self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)
+        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
         self.action_range = action_range
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512, 1)
+        self.fc = nn.Linear(128, 1)
 
 
     def forward(self, state):
         state = self.resnet18.features(state)
+        state = self.conv1(state)
         state = self.avgpool(state)
         state = state.view(state.size(0), -1)
         state = t.tanh(self.fc(state)) * self.action_range
@@ -100,14 +102,17 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, num_input_channels, action_dim):
         super().__init__()
-        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)        
+        self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels) 
+        self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(512+1, 256)
-        self.fc2 = nn.Linear(256, 1)
+        self.fc1 = nn.Linear(128+1, 64)
+        self.fc2 = nn.Linear(64, 1)
 
     def forward(self, state, action):
         state = self.resnet18.features(state)
+        state = self.conv1(state)
         state = self.avgpool(state)
+        state = state.view(state.size(0),-1)
         state_action = t.cat([state, action], 1)
         q = t.relu(self.fc1(state_action))
         q = self.fc2(q)
@@ -124,9 +129,10 @@ def create_action_from_model_action(action):
     for i, g in enumerate(action):
         for j, s in enumerate(g):                
             if s is not None:
-                max_actual_action_val = VectorEnv.get_action_space("pushing_robot")
+                max_actual_action_val = VectorEnv.get_action_space("pushing_robot")-1
                 min_actual_action_val  = 0 
                 actual_action = min_actual_action_val + ((s-action_low) /(action_high-action_low)) *(max_actual_action_val-min_actual_action_val)
+                #print(int(actual_action))
                 action_n[i][j] = int(actual_action)
     return action_n
 def step(state,cfg,ddpg,device,noise):
@@ -143,7 +149,9 @@ def step(state,cfg,ddpg,device,noise):
                     old_state = s 
                     old_state = apply_transform(old_state).to(device)                    
                     action = ddpg.actor(old_state).squeeze(0)
-                    action = action.flatten[0]
+                    action = t.flatten(action).cpu()[0].item()
+                    
+                    #print(action)
                     action = noise.get_action(action)                     
                     action_n_model[i][j] = action 
                     #action_to_insert = t.tensor(action, dtype=t.long).to(device).view(1,-1)
@@ -158,10 +166,10 @@ def main(cfg):
     log_dir = Path(cfg.log_dir)
     checkpoint_dir = Path(cfg.checkpoint_dir)
     print("starting on device ",device)
-    actor = Actor(cfg.num_input_channels, 1,1)
-    actor_t = Actor(cfg.num_input_channels, 1, 1)
-    critic = Critic(cfg.num_input_channels, 1)
-    critic_t = Critic(cfg.num_input_channels, 1)
+    actor = Actor(cfg.num_input_channels, 1,1).to(device)
+    actor_t = Actor(cfg.num_input_channels, 1, 1).to(device)
+    critic = Critic(cfg.num_input_channels, 1).to(device)
+    critic_t = Critic(cfg.num_input_channels, 1).to(device) 
 
     
     if cfg.checkpoint_path is not None:
@@ -235,6 +243,7 @@ def main(cfg):
 
         #print(len(dqn.replay_buffer.buffer))
         if done:
+            print(info["total_cubes"])
             state = env.reset()
             episode += 1
         
@@ -274,7 +283,7 @@ def main(cfg):
                 'timestep': timestep + 1,
                 'episode': episode,
                 'critic_optimizer': ddpg.critic_optim.state_dict() ,
-                'actor_optimizer': ddpg.critic_optim.state_dict() ,
+                'actor_optimizer': ddpg.actor_optim.state_dict() ,
                 'replay_buffers': ddpg.replay_buffer.buffer,
             }
             dill.dump(checkpoint,open(str(checkpoint_path),mode='wb'))
