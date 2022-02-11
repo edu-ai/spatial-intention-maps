@@ -16,7 +16,7 @@ intention_channel_encoding: spatial
 intention_channel_nonspatial_scale: 0.025
 intention_map_encoding: ramp
 learning_rate: 0.01
-learning_starts_frac: 0.001
+learning_starts_frac: 0.025
 lifting_pointless_drop_penalty: 0.25
 log_dir: null
 logs_dir: null

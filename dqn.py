@@ -14,11 +14,12 @@ import torch.nn.functional as F
 import resnet
 import numpy as np 
 import utils
+import dill
 from envs import VectorEnv
 from torchvision import transforms
 from tqdm import tqdm 
-
-
+from collections import namedtuple
+#from machin.frame.algorithms.dqn import Transition
 # configurations
 '''
 env = gym.make("CartPole-v0")
@@ -30,6 +31,7 @@ solved_reward = 190
 solved_repeat = 5
 '''
 
+#Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state'))
 
 class TransitionTracker:
     def __init__(self, initial_state):
@@ -67,7 +69,11 @@ class QNet(nn.Module):
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
 
     def forward(self, state):
+        print(state.size(),state.flatten().size()) 
+        l = self.resnet18.forward(state) 
         state = self.resnet18.features(state)
+        
+        print(l.size(),l.flatten().size(), state.size()) 
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
@@ -76,6 +82,7 @@ class QNet(nn.Module):
         state = self.bn2(state)
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        print(state.size(),state.flatten().size()) 
         return self.conv3(state)
 
 
@@ -84,7 +91,7 @@ def apply_transform(s):
     transform = transforms.ToTensor()
     return transform(s).unsqueeze(0)
 
-def step(state,cfg,dqn,exploration_eps=None):
+def step(state,cfg,dqn,device,exploration_eps=None):
     if exploration_eps is None:
             exploration_eps = cfg.final_exploration
 
@@ -93,13 +100,14 @@ def step(state,cfg,dqn,exploration_eps=None):
     with t.no_grad():
         #tmp_observations = [[None for _ in g] for g in state]
         for i, g in enumerate(state):
+            dqn.qnet.eval()
             for j, s in enumerate(g):                
                 if s is not None:
                     old_state = s 
 
-                    old_state = apply_transform(old_state)
+                    old_state = apply_transform(old_state).to(device)
                     #TODO need to include this function ```act``` in the dqn portion to get just the value not the max index 
-                    action = dqn.act({"state": old_state})
+                    action = dqn.qnet(old_state).squeeze(0)
                     action = action.view(1, -1).max(1)[1].item()
                     if random.random() < exploration_eps:
                         action = random.randrange(VectorEnv.get_action_space("pushing_robot"))
@@ -147,8 +155,10 @@ def main(cfg):
     if cfg.checkpoint_path is not None:
         policy_checkpoint = t.load(cfg.policy_path, map_location=device)        
         q_net.load_state_dict(policy_checkpoint['state_dicts'])
-        
+    
+   
     q_net_t.load_state_dict(q_net.state_dict())
+    q_net_t.eval()
     kwargs = {}
     if cfg.show_gui:
         import matplotlib  # pylint: disable=import-outside-toplevel
@@ -166,11 +176,11 @@ def main(cfg):
     start_timestep = 0
     episode = 0
     if cfg.checkpoint_path is not None:
-        checkpoint = t.load(cfg.checkpoint_path)
+        checkpoint = dill.load(open(str(cfg.checkpoint_path),'rb'))
         start_timestep = checkpoint['timestep']
         episode = checkpoint['episode']
         dqn.qnet_optim.load_state_dict(checkpoint['optimizers'])
-        dqn.replay_buffer = checkpoint['replay_buffers']
+        dqn.replay_buffer.buffer = checkpoint['replay_buffers']
     
 
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
@@ -188,7 +198,7 @@ def main(cfg):
         #terminal = False
         #state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
-        action_n = step(state,cfg,dqn,exploration_eps)
+        action_n = step(state,cfg,dqn,device,exploration_eps)
 
         transition_tracker.update_action(action_n)
 
@@ -200,7 +210,7 @@ def main(cfg):
         for i, transitions in enumerate(transitions_per_buffer):
             for transition in transitions:
                 dqn.replay_buffer.push(*transition)
-
+        #print(len(dqn.replay_buffer.buffer))
         if done:
             state = env.reset()
             episode += 1
@@ -234,10 +244,10 @@ def main(cfg):
                 'timestep': timestep + 1,
                 'episode': episode,
                 'optimizers': dqn.qnet_optim.state_dict() ,
-                'replay_buffers': dqn.replay_buffer,
+                'replay_buffers': dqn.replay_buffer.buffer,
             }
-            
-            t.save(checkpoint, str(checkpoint_path))
+            dill.dump(checkpoint,open(str(checkpoint_path),mode='wb'))
+            #t.save(checkpoint, str(checkpoint_path))
 
             # Save updated config file
             cfg.policy_path = str(policy_path)

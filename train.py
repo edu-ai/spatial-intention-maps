@@ -111,12 +111,10 @@ def train(cfg, policy_net, target_net, optimizer, batch, transform_fn, discount_
     reward_batch = torch.tensor(batch.reward, dtype=torch.float32).to(device)  # (32,)
     non_final_next_states = torch.cat([transform_fn(s) for s in batch.next_state if s is not None]).to(device, non_blocking=True)  # (<=32, 4, 96, 96)
 
-    print(state_batch.size(),action_batch.size(),reward_batch.size(),non_final_next_states.size())
     output = policy_net(state_batch)  # (32, 2, 96, 96)
     state_action_values = output.view(cfg.batch_size, -1).gather(1, action_batch.unsqueeze(1)).squeeze(1)  # (32,)
     next_state_values = torch.zeros(cfg.batch_size, dtype=torch.float32, device=device)  # (32,)
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), dtype=torch.bool, device=device)  # (32,)
-
     if cfg.use_double_dqn:
         with torch.no_grad():
             best_action = policy_net(non_final_next_states).view(non_final_next_states.size(0), -1).max(1)[1].view(non_final_next_states.size(0), 1)  # (<=32, 1)
@@ -164,7 +162,6 @@ def main(cfg):
     checkpoint_dir = Path(cfg.checkpoint_dir)
     print('log_dir: {}'.format(log_dir))
     print('checkpoint_dir: {}'.format(checkpoint_dir))
-    random_seed = 0
     # Create environment
     kwargs = {}
     if cfg.show_gui:
@@ -173,7 +170,7 @@ def main(cfg):
     if cfg.use_predicted_intention:  # Enable ground truth intention map during training only
         kwargs['use_intention_map'] = True
         kwargs['intention_map_encoding'] = 'ramp'
-    env = utils.get_env_from_cfg(cfg,random_seed=random_seed,**kwargs)
+    env = utils.get_env_from_cfg(cfg,**kwargs)
 
     robot_group_types = env.get_robot_group_types()
     num_robot_groups = len(robot_group_types)
@@ -243,7 +240,7 @@ def main(cfg):
         for i, transitions in enumerate(transitions_per_buffer):
             for transition in transitions:
                 replay_buffers[i].push(*transition)
-                print("length of replaybuffer", len(replay_buffers[i].buffer))
+                #print("length of replaybuffer", len(replay_buffers[i].buffer))
         # Reset if episode ended
         if done:
             state = env.reset()
