@@ -69,11 +69,7 @@ class QNet(nn.Module):
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
 
     def forward(self, state):
-        print(state.size(),state.flatten().size()) 
-        l = self.resnet18.forward(state) 
         state = self.resnet18.features(state)
-        
-        print(l.size(),l.flatten().size(), state.size()) 
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
@@ -82,7 +78,6 @@ class QNet(nn.Module):
         state = self.bn2(state)
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
-        print(state.size(),state.flatten().size()) 
         return self.conv3(state)
 
 
