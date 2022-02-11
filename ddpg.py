@@ -1,3 +1,11 @@
+
+import os
+import argparse
+import random
+import sys
+from pathlib import Path
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
+
 from machin.frame.algorithms import DDPG
 from machin.utils.logging import default_logger as logger
 import torch as t
