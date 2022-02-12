@@ -16,6 +16,7 @@ import utils
 from envs import VectorEnv
 from torchvision import transforms
 
+
 # model definition
 class Actor(nn.Module):
     def __init__(self, num_input_channels=3, num_output_channels=1, action_range=1):
@@ -103,7 +104,6 @@ class Critic(nn.Module):
         state = state.view(state.size(0), -1)
         state_action = t.cat([state, action], 1)
         return self.fc1(state_action)
-
 
 def apply_transform(s):
     transform = transforms.ToTensor()
