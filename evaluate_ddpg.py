@@ -39,13 +39,13 @@ class Actor(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(96*96,512)
+        self.fc1 = nn.Linear(96*96+2,512)
         self.fc2 = nn.Linear(512,128) 
         self.fc3 = nn.Linear(128,1)
 
 
 
-    def forward(self, state):
+    def forward(self, state,receptacle_num):
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -62,7 +62,9 @@ class Actor(nn.Module):
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
+        
         state = t.flatten(state,start_dim=1)
+        state = t.cat([state, receptacle_num], 1)
         #print(state.size())    
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
@@ -92,11 +94,11 @@ class Critic(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32,1, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(96*96+1,512)
+        self.fc1 = nn.Linear(96*96+2+1,512)
         self.fc2 = nn.Linear(512,128) 
         self.fc3 = nn.Linear(128,1)
 
-    def forward(self, state, action):
+    def forward(self, state,receptacle_num, action):
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -119,13 +121,14 @@ class Critic(nn.Module):
         state = t.flatten(state,start_dim=1)
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
-        state_action = t.cat([state, action], 1)
+        state_action = t.cat([state, receptacle_num], 1)
+        state_action = t.cat([state_action,action],1)
         state_action = self.fc1(state_action) 
         state_action = F.relu(state_action) 
         state_action = self.fc2(state_action) 
         state_action = F.relu(state_action) 
         return self.fc3(state_action)
-        
+
 def apply_transform(s):
     transform = transforms.ToTensor()
     return transform(s).unsqueeze(0)
@@ -144,7 +147,7 @@ def create_action_from_model_action(action):
     return action_n
 
 
-def step(state,cfg,ddpg,device):
+def step(state,cfg,ddpg,device,receptacle_num):
 
    
     action_n_model = [[None for _ in g] for g in state]
@@ -156,8 +159,9 @@ def step(state,cfg,ddpg,device):
             for j, s in enumerate(g):                
                 if s is not None:
                     old_state = s 
-                    old_state = apply_transform(old_state).to(device)                    
-                    action = ddpg.actor(old_state).squeeze(0)
+                    old_state = apply_transform(old_state).to(device)    
+                    old_receptacle_num = t.unsqueeze(t.tensor(np.array(receptacle_num),dtype=t.long).to(device),0)                
+                    action = ddpg.actor(old_state,old_receptacle_num).squeeze(0)
                     action = t.flatten(action).cpu()[0].item()                                   
                     action_n_model[i][j] = action 
                     #action_to_insert = t.tensor(action, dtype=t.long).to(device).view(1,-1)
@@ -198,12 +202,14 @@ def run_eval(cfg, num_episodes=20):
     data = [[] for _ in range(num_episodes)]
     episode_count = 0
     state = env.reset()
+    receptacle_num = env.num_cubes_per_receptacle
     current_ratios = []
 
     print("starting",cfg.checkpoint_path) 
     while True:
-        action_n,_ = step(state,cfg,ddpg,device)
+        action_n,_ = step(state,cfg,ddpg,device,receptacle_num)
         state, _, done, info = env.step(action_n)
+        receptacle_num = env.num_cubes_per_receptacle 
         data[episode_count].append({
             'simulation_steps': info['simulation_steps'],
             'cubes': info['total_cubes'],
@@ -221,6 +227,7 @@ def run_eval(cfg, num_episodes=20):
             if episode_count >= num_episodes:
                 break
             state = env.reset()
+            receptacle_num = env.num_cubes_per_receptacle 
     env.close()
 
     return data,current_ratios

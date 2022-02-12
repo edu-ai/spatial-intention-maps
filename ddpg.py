@@ -325,6 +325,7 @@ def main(cfg):
         if done:
             print(info["total_cubes"])
             state = env.reset()
+            receptacle_num = env.num_cubes_per_receptacle 
             episode += 1
         
         # update, update more if episode is longer, else less
