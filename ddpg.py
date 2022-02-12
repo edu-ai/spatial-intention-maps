@@ -204,8 +204,9 @@ def create_action_from_model_action(action):
                 #print(int(actual_action))
                 action_n[i][j] = int(actual_action)
     return action_n
-def step(state,cfg,ddpg,device,noise,receptacle_num):
-
+def step(state,cfg,ddpg,device,receptacle_num,exploration_eps=None):
+    if(exploration_eps is None): 
+        exploration_eps = cfg.final_exploration 
    
     action_n_model = [[None for _ in g] for g in state]
 
@@ -222,7 +223,10 @@ def step(state,cfg,ddpg,device,noise,receptacle_num):
                     action = t.flatten(action).cpu()[0].item()
                     
                     #print(action)
-                    action = noise.get_action(action)                     
+                    #action = noise.get_action(action)      
+                    if random.random() < exploration_eps:
+                        action = random.randrange(VectorEnv.get_action_space("pushing_robot"))
+                        action = -1 +((action-0)/(VectorEnv.get_action_space("pushing_robot")-1))*(2)
                     action_n_model[i][j] = action 
                     #action_to_insert = t.tensor(action, dtype=t.long).to(device).view(1,-1)
                     #tmp_observations[i][j] = {"state": {"state": old_state},"action": {"action": action_to_insert},}
@@ -281,8 +285,8 @@ def main(cfg):
         ddpg.actor_optim.load_state_dict(checkpoint['actor_optimizer'])
         ddpg.replay_buffer.buffer = checkpoint['replay_buffers']
     
-    learning_starts  = 0
-    #learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
+    #learning_starts  = 0
+    learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
     
     state = env.reset()
@@ -291,14 +295,14 @@ def main(cfg):
 
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
         # Select an action for each robot
-        #exploration_eps = 1 - (1 - cfg.final_exploration) * min(1, max(0, timestep - learning_starts) / (cfg.exploration_frac * cfg.total_timesteps))
+        exploration_eps = 1 - (1 - cfg.final_exploration) * min(1, max(0, timestep - learning_starts) / (cfg.exploration_frac * cfg.total_timesteps))
         
         #action = policy.step(state, exploration_eps=exploration_eps)
 
         #terminal = False
         #state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
-        action_n,action_n_model = step(state,cfg,ddpg,device,noise,receptacle_num)
+        action_n,action_n_model = step(state,cfg,ddpg,device,receptacle_num,exploration_eps)
 
         transition_tracker.update_action(action_n_model)
 
