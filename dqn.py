@@ -67,7 +67,6 @@ class QNet(nn.Module):
         self.conv2 = nn.Conv2d(128, 32, kernel_size=1, stride=1)
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
-
     def forward(self, state):
         state = self.resnet18.features(state)
         state = self.conv1(state)
