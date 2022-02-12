@@ -27,26 +27,27 @@ action_low = -1
 action_high = 1
 
 class TransitionTracker:
-    def __init__(self, initial_state):
+    def __init__(self, initial_state,initial_receptacle_num):
         self.num_buffers = len(initial_state)
         self.prev_state = initial_state
         self.prev_action = [[None for _ in g] for g in self.prev_state]
-
+        self.prev_receptacle_num = initial_receptacle_num
     def update_action(self, action):
         for i, g in enumerate(action):
             for j, a in enumerate(g):
                 if a is not None:
                     self.prev_action[i][j] = a
 
-    def update_step_completed(self, reward, state, done):
+    def update_step_completed(self, reward, state, done,next_receptacle_num):
         transitions_per_buffer = [[] for _ in range(self.num_buffers)]
         for i, g in enumerate(state):
             for j, s in enumerate(g):
                 if s is not None or done:
                     if self.prev_state[i][j] is not None:
-                        transition = (self.prev_state[i][j], self.prev_action[i][j], reward[i][j], s)
+                        transition = (self.prev_state[i][j], self.prev_action[i][j], reward[i][j], s, self.prev_receptacle_num,next_receptacle_num)
                         transitions_per_buffer[i].append(transition)
                     self.prev_state[i][j] = s
+        self.prev_receptacle_num = next_receptacle_num
         return transitions_per_buffer
 
 
@@ -97,13 +98,13 @@ class Actor(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(96*96,512)
+        self.fc1 = nn.Linear(96*96+2,512)
         self.fc2 = nn.Linear(512,128) 
         self.fc3 = nn.Linear(128,1)
 
 
 
-    def forward(self, state):
+    def forward(self, state,receptacle_num):
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -120,7 +121,9 @@ class Actor(nn.Module):
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
+        
         state = t.flatten(state,start_dim=1)
+        state = t.cat([state, receptacle_num], 1)
         #print(state.size())    
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
@@ -150,11 +153,11 @@ class Critic(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32,1, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(96*96+1,512)
+        self.fc1 = nn.Linear(96*96+2+1,512)
         self.fc2 = nn.Linear(512,128) 
         self.fc3 = nn.Linear(128,1)
 
-    def forward(self, state, action):
+    def forward(self, state,receptacle_num, action):
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -177,7 +180,7 @@ class Critic(nn.Module):
         state = t.flatten(state,start_dim=1)
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
-        state_action = t.cat([state, action], 1)
+        state_action = t.cat([state, receptacle_num,action], 1)
         state_action = self.fc1(state_action) 
         state_action = F.relu(state_action) 
         state_action = self.fc2(state_action) 
@@ -201,7 +204,7 @@ def create_action_from_model_action(action):
                 #print(int(actual_action))
                 action_n[i][j] = int(actual_action)
     return action_n
-def step(state,cfg,ddpg,device,noise):
+def step(state,cfg,ddpg,device,noise,receptacle_num):
 
    
     action_n_model = [[None for _ in g] for g in state]
@@ -213,8 +216,9 @@ def step(state,cfg,ddpg,device,noise):
             for j, s in enumerate(g):                
                 if s is not None:
                     old_state = s 
-                    old_state = apply_transform(old_state).to(device)                    
-                    action = ddpg.actor(old_state).squeeze(0)
+                    old_state = apply_transform(old_state).to(device)       
+                    old_receptacle_num = t.unsqueeze(t.tensor(np.array(receptacle_num),dtype=t.long).to(device),0)
+                    action = ddpg.actor(old_state, old_receptacle_num).squeeze(0)
                     action = t.flatten(action).cpu()[0].item()
                     
                     #print(action)
@@ -282,7 +286,8 @@ def main(cfg):
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
     
     state = env.reset()
-    transition_tracker = TransitionTracker(state)
+    receptacle_num = env.num_cubes_per_receptacle
+    transition_tracker = TransitionTracker(state,receptacle_num)
 
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
         # Select an action for each robot
@@ -293,15 +298,16 @@ def main(cfg):
         #terminal = False
         #state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
-        action_n,action_n_model = step(state,cfg,ddpg,device,noise)
+        action_n,action_n_model = step(state,cfg,ddpg,device,noise,receptacle_num)
 
         transition_tracker.update_action(action_n_model)
 
         # Step the simulation
         state, reward, done, info = env.step(action_n)
+        receptacle_num = env.num_cubes_per_receptacle 
 
         # Store in buffers
-        transitions_per_buffer = transition_tracker.update_step_completed(reward, state, done)
+        transitions_per_buffer = transition_tracker.update_step_completed(reward, state, done,receptacle_num)
         for i, transitions in enumerate(transitions_per_buffer):
             for transition in transitions:
                 ddpg.replay_buffer.push(*transition)
