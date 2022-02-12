@@ -1,5 +1,6 @@
 import argparse
 import random
+import copy
 # Prevent numpy from using up all cpu
 import os
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
@@ -16,6 +17,9 @@ import utils
 from envs import VectorEnv
 from torchvision import transforms
 
+action_dim = 1
+action_low = -1 
+action_high = 1 
 
 # model definition
 class Actor(nn.Module):
