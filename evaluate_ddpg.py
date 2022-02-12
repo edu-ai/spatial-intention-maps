@@ -27,6 +27,7 @@ class Actor(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512, 1)
         '''
+        self.action_range = action_range
         self.resnet18 = resnet.resnet18(num_input_channels=num_input_channels)
         self.conv1 = nn.Conv2d(512, 128, kernel_size=1, stride=1)
         self.bn1 = nn.BatchNorm2d(128)
@@ -34,7 +35,9 @@ class Actor(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(32,1)
+        self.fc1 = nn.Linear(96*96,512)
+        self.fc2 = nn.Linear(512,128) 
+        self.fc3 = nn.Linear(128,1)
 
 
 
@@ -55,9 +58,16 @@ class Actor(nn.Module):
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
-        state = self.avgpool(state) 
-        state = state.view(state.size(0), -1)
-        state = t.tanh(self.fc(state)) * self.action_range
+        state = t.flatten(state,start_dim=1)
+        #print(state.size())    
+        #state = self.avgpool(state) 
+        #state = state.view(state.size(0), -1)
+        #print(state.size())
+        state  = self.fc1(state)
+        state = F.relu(state)
+        state = self.fc2(state) 
+        state = F.relu(state)
+        state = t.tanh(self.fc3(state)) * self.action_range
 
         return state
 
@@ -76,9 +86,11 @@ class Critic(nn.Module):
         self.bn1 = nn.BatchNorm2d(128)
         self.conv2 = nn.Conv2d(128, 32, kernel_size=1, stride=1)
         self.bn2 = nn.BatchNorm2d(32)
-        self.conv3 = nn.Conv2d(32, num_output_channels, kernel_size=1, stride=1)
+        self.conv3 = nn.Conv2d(32,1, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(32+1,1)
+        self.fc1 = nn.Linear(96*96+1,512)
+        self.fc2 = nn.Linear(512,128) 
+        self.fc3 = nn.Linear(128,1)
 
     def forward(self, state, action):
         '''
@@ -100,11 +112,16 @@ class Critic(nn.Module):
         state = F.relu(state)
         state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
-        state = self.avgpool(state) 
-        state = state.view(state.size(0), -1)
+        state = t.flatten(state,start_dim=1)
+        #state = self.avgpool(state) 
+        #state = state.view(state.size(0), -1)
         state_action = t.cat([state, action], 1)
-        return self.fc1(state_action)
-
+        state_action = self.fc1(state_action) 
+        state_action = F.relu(state_action) 
+        state_action = self.fc2(state_action) 
+        state_action = F.relu(state_action) 
+        return self.fc3(state_action)
+        
 def apply_transform(s):
     transform = transforms.ToTensor()
     return transform(s).unsqueeze(0)
