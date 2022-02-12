@@ -44,7 +44,7 @@ class TransitionTracker:
             for j, s in enumerate(g):
                 if s is not None or done:
                     if self.prev_state[i][j] is not None:
-                        transition = (self.prev_state[i][j], self.prev_action[i][j], reward[i][j], s, self.prev_receptacle_num,next_receptacle_num)
+                        transition = (self.prev_state[i][j], [self.prev_action[i][j]], reward[i][j], s, self.prev_receptacle_num,next_receptacle_num)
                         transitions_per_buffer[i].append(transition)
                     self.prev_state[i][j] = s
         self.prev_receptacle_num = next_receptacle_num
@@ -180,7 +180,8 @@ class Critic(nn.Module):
         state = t.flatten(state,start_dim=1)
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
-        state_action = t.cat([state, receptacle_num,action], 1)
+        state_action = t.cat([state, receptacle_num], 1)
+        state_action = t.cat([state_action,action],1)
         state_action = self.fc1(state_action) 
         state_action = F.relu(state_action) 
         state_action = self.fc2(state_action) 
@@ -204,7 +205,7 @@ def create_action_from_model_action(action):
                 #print(int(actual_action))
                 action_n[i][j] = int(actual_action)
     return action_n
-def step(state,cfg,ddpg,device,receptacle_num,exploration_eps=None):
+def step(state,cfg,ddpg,device,receptacle_num,noise,exploration_eps=None,use_ou_noise=False):
     if(exploration_eps is None): 
         exploration_eps = cfg.final_exploration 
    
@@ -217,14 +218,16 @@ def step(state,cfg,ddpg,device,receptacle_num,exploration_eps=None):
             for j, s in enumerate(g):                
                 if s is not None:
                     old_state = s 
-                    old_state = apply_transform(old_state).to(device)       
+                    old_state = apply_transform(old_state).to(device)     
                     old_receptacle_num = t.unsqueeze(t.tensor(np.array(receptacle_num),dtype=t.long).to(device),0)
                     action = ddpg.actor(old_state, old_receptacle_num).squeeze(0)
                     action = t.flatten(action).cpu()[0].item()
                     
                     #print(action)
-                    #action = noise.get_action(action)      
-                    if random.random() < exploration_eps:
+                    if(use_ou_noise): 
+                        action = noise.get_action(action)
+                        action = action[0]
+                    if (use_ou_noise == False and random.random() < exploration_eps):
                         action = random.randrange(VectorEnv.get_action_space("pushing_robot"))
                         action = -1 +((action-0)/(VectorEnv.get_action_space("pushing_robot")-1))*(2)
                     action_n_model[i][j] = action 
@@ -290,9 +293,10 @@ def main(cfg):
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
     
     state = env.reset()
+    #print("new state", state)
     receptacle_num = env.num_cubes_per_receptacle
     transition_tracker = TransitionTracker(state,receptacle_num)
-
+    ou_noise = False
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
         # Select an action for each robot
         exploration_eps = 1 - (1 - cfg.final_exploration) * min(1, max(0, timestep - learning_starts) / (cfg.exploration_frac * cfg.total_timesteps))
@@ -302,7 +306,7 @@ def main(cfg):
         #terminal = False
         #state = t.tensor(env.reset(), dtype=t.float32).view(1, observe_dim)
         tmp_observations = []
-        action_n,action_n_model = step(state,cfg,ddpg,device,receptacle_num,exploration_eps)
+        action_n,action_n_model = step(state,cfg,ddpg,device,receptacle_num,noise,exploration_eps,ou_noise)
 
         transition_tracker.update_action(action_n_model)
 
@@ -343,6 +347,8 @@ def main(cfg):
 
             # Save policy
             policy_filename = 'policy_{:08d}_ddpg.pth.tar'.format(timestep + 1)
+            if(ou_noise): 
+                policy_filename = 'policy_{:08d}_ddpg_ou_noise.pth.tar'.format(timestep + 1)
             policy_path = checkpoint_dir / policy_filename
             policy_checkpoint = {
                 'timestep': timestep + 1,
@@ -353,6 +359,8 @@ def main(cfg):
 
             # Save checkpoint
             checkpoint_filename = 'checkpoint_{:08d}_ddpg.pth.tar'.format(timestep + 1)
+            if(ou_noise): 
+                checkpoint_filename = 'checkpoint_{:08d}_ddpg_ou_noise.pth.tar'.format(timestep + 1)
             checkpoint_path = checkpoint_dir / checkpoint_filename
             
             checkpoint = {
