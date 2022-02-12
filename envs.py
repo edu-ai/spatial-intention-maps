@@ -300,6 +300,9 @@ class VectorEnv:
                         self.remove_cube(cube_id)
                         self.available_cube_ids_set.remove(cube_id)
                         self.num_cubes_per_receptacle[i]+=1
+                    elif self.cube_position_in_receptacle(cube_position,receptacle_position) and self.num_cubes_per_receptacle[i] >=  self.max_cubes_per_recptacle: 
+                        closest_robot.cube_dist_closer += -1
+
                     i+=1
                 
         # Robots that are awaiting new action need an up-to-date map

@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
 
-from machin.frame.algorithms import DQN
+from machin.frame.algorithms import DQNPer
 from machin.utils.logging import default_logger as logger
 import torch as t
 import torch.nn as nn
@@ -166,7 +166,7 @@ def main(cfg):
     gradient_norm_cut_off = np.inf 
     if cfg.grad_norm_clipping is not None:
         gradient_norm_cut_off = cfg.grad_norm_clipping
-    dqn = DQN(qnet=q_net, qnet_target=q_net_t, optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,update_steps=1, discount=cfg.discount_factors[0],gradient_max = gradient_norm_cut_off, replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay)
+    dqn = DQNPer(qnet=q_net, qnet_target=q_net_t, optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,update_steps=1, discount=cfg.discount_factors[0],gradient_max = gradient_norm_cut_off, replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay)
     start_timestep = 0
     episode = 0
     if cfg.checkpoint_path is not None:
@@ -174,9 +174,16 @@ def main(cfg):
         start_timestep = checkpoint['timestep']
         episode = checkpoint['episode']
         dqn.qnet_optim.load_state_dict(checkpoint['optimizers'])
-        dqn.replay_buffer.buffer = checkpoint['replay_buffers']
-    
+        dqn.replay_buffer.memory = checkpoint["replay_buffer_memory"] 
+        dqn.replay_buffer.memory_data = checkpoint["replay_buffer_memory_data"]
 
+        dqn.replay_buffer.sampled_batches = checkpoint["replay_sampled_batches"]
+        dqn.replay_buffer.experience_count = checkpoint["replay_experience_count"]
+        dqn.replay_buffer.current_batch = checkpoint["replay_current_batch"]
+        dqn.replay_buffer.priorities_sum_alpha = checkpoint["replay_priorities_sum_alpha"]
+        dqn.replay_buffer.priorities_max = checkpoint["replay_priorities_max"] 
+        dqn.replay_buffer.weights_max = checkpoint["replay_weight_max"]
+    
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
     
@@ -212,7 +219,10 @@ def main(cfg):
         # update, update more if episode is longer, else less
         if timestep >= learning_starts and (timestep + 1) % cfg.train_freq == 0:
             dqn.update(update_value= True,update_target=False,concatenate_samples=False)
-
+        if (timestep+1)%20 == 0 : 
+            dqn.replay_buffer.update_memory_sampling() 
+        if  (timestep+1)%3000 == 0: 
+            dqn.replay_buffer.update_parameters()
         if (timestep + 1) % cfg.target_update_freq == 0:
             #dqn.update(update_value= False,update_target=True,concatenate_samples=False)
             dqn.qnet_target.load_state_dict(dqn.qnet.state_dict())
@@ -222,7 +232,7 @@ def main(cfg):
                 checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
             # Save policy
-            policy_filename = 'policy_{:08d}.pth.tar'.format(timestep + 1)
+            policy_filename = 'policy_{:08d}_dqn_per.pth.tar'.format(timestep + 1)
             policy_path = checkpoint_dir / policy_filename
             policy_checkpoint = {
                 'timestep': timestep + 1,
@@ -231,14 +241,21 @@ def main(cfg):
             t.save(policy_checkpoint, str(policy_path))
 
             # Save checkpoint
-            checkpoint_filename = 'checkpoint_{:08d}.pth.tar'.format(timestep + 1)
+            checkpoint_filename = 'checkpoint_{:08d}_dqn_per.pth.tar'.format(timestep + 1)
             checkpoint_path = checkpoint_dir / checkpoint_filename
             
             checkpoint = {
                 'timestep': timestep + 1,
                 'episode': episode,
                 'optimizers': dqn.qnet_optim.state_dict() ,
-                'replay_buffers': dqn.replay_buffer.buffer,
+                'replay_buffer_memory': dqn.replay_buffer.memory, 
+                'replay_buffer_memory_data': dqn.replay_buffer.memory_data,
+                'replay_sampled_batches' : dqn.replay_buffer.sampled_batches, 
+                'replay_experience_count': dqn.replay_buffer.experience_count, 
+                'replay_current_batch': dqn.replay_buffer.current_batch, 
+                'replay_priorities_sum_alpha': dqn.replay_buffer.priorities_sum_alpha, 
+                'replay_priorities_max': dqn.replay_buffer.priorities_max, 
+                'replay_weight_max': dqn.replay_buffer.weights_max
             }
             dill.dump(checkpoint,open(str(checkpoint_path),mode='wb'))
             #t.save(checkpoint, str(checkpoint_path))
