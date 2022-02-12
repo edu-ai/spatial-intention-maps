@@ -213,6 +213,7 @@ def main(cfg):
                 dqn.replay_buffer.add(transition[0],transition[1],transition[2],transition[3],transition[4])
         #print(len(dqn.replay_buffer.buffer))
         if done:
+            print("num boxes", info["total_cubes"])
             state = env.reset()
             episode += 1
         
