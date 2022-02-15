@@ -51,7 +51,7 @@ class VectorEnv:
             inactivity_cutoff_per_robot=100,
             random_seed=None, use_egl_renderer=False,
             show_gui=False, show_debug_annotations=False, show_occupancy_maps=False,
-            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,use_closest_cube_map=False, use_reward_for_closest_cube = False
+            real=False, real_robot_indices=None, real_cube_indices=None, real_debug=False,use_closest_cube_map=False,use_bigger_obstacle= True, use_reward_for_closest_cube = False, equal_distribution=True
         ):
 
         ################################################################################
@@ -62,7 +62,10 @@ class VectorEnv:
         self.room_length = room_length
         self.room_width = room_width
         self.num_cubes = num_cubes
-        self.max_cubes_per_recptacle  = math.ceil(self.num_cubes/2) 
+        if(equal_distribution): 
+            self.max_cubes_per_recptacle  = math.ceil(self.num_cubes/2) #change for number of cubes per receptacle 
+        else:
+            self.max_cubes_per_recptacle = self.num_cubes
         self.env_name = env_name
         
 
@@ -171,7 +174,7 @@ class VectorEnv:
 
         # End an episode after too many steps of inactivity
         self.inactivity_cutoff = self.num_robots * self.inactivity_cutoff_per_robot
-
+        self.use_bigger_obstacle = use_bigger_obstacle
         # Stats
         self.steps = None
         self.simulation_steps = None
@@ -576,8 +579,15 @@ class VectorEnv:
 
         def add_divider(x_offset=0):
             divider_width = 0.05
-            opening_width = 0.09
-            obstacles.append({'type': 'divider', 'position': (x_offset, 0.1), 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
+            if(self.use_bigger_obstacle): 
+                opening_width = 0.09
+            else: 
+                opening_width = 0.16
+            if(self.use_bigger_obstacle): 
+                position = (x_offset,0.1)
+            else: 
+                position = (x_offset,0)
+            obstacles.append({'type': 'divider', 'position': position, 'heading': 0, 'x_len': divider_width, 'y_len': self.room_width - 2 * opening_width})
             #self.robot_spawn_bounds = (x_offset + divider_width / 2, None, None, None)
             #self.cube_spawn_bounds = (None, x_offset - divider_width / 2, None, None)
             

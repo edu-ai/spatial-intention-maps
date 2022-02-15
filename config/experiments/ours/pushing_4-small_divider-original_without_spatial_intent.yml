@@ -7,7 +7,7 @@ discount_factors:
 - 0.85
 distance_to_receptacle_map_scale: 0.25
 env_name: small_divider
-experiment_name: pushing_4-small_divider-ours-original
+experiment_name: pushing_4-small_divider-ours-original-no-spatial-intent
 exploration_frac: 0.1
 final_exploration: 0.01
 grad_norm_clipping: 100
@@ -22,7 +22,7 @@ log_dir: null
 logs_dir: null
 num_cubes: 10
 
-num_input_channels: 5
+num_input_channels: 4
 obstacle_collision_penalty: 0.25
 partial_rewards_scale: 2.0
 policy_path: null
@@ -45,7 +45,7 @@ use_double_dqn: true
 use_egl_renderer: true
 use_history_map: false
 use_intention_channels: false
-use_intention_map: true
+use_intention_map: false
 use_partial_observations: true
 use_predicted_intention: false
 use_predicted_intention_frac: 0.9

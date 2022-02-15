@@ -187,6 +187,8 @@ def get_env_from_cfg(cfg, **kwargs):
     final_kwargs = {}
     for kwarg_name in kwarg_list:
         final_kwargs[kwarg_name] = cfg[kwarg_name]
+    final_kwargs["equal_distribution"] = False
+    final_kwargs["use_bigger_obstacle"] = False
     final_kwargs.update(kwargs)
 
     # Additional modifications for real robot

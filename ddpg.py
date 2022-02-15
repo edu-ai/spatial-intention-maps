@@ -264,7 +264,8 @@ def main(cfg):
     if cfg.use_predicted_intention:  # Enable ground truth intention map during training only
         kwargs['use_intention_map'] = True
         kwargs['intention_map_encoding'] = 'ramp'
-    
+    kwargs["equal_distribution"] = False
+    kwargs["use_bigger_obstacle"] = False
     env = utils.get_env_from_cfg(cfg, **kwargs)
 
     #TODO need to include the  momentum=0.9, weight_decay=cfg.weight_decay) for SGD
@@ -363,7 +364,6 @@ def main(cfg):
             if(ou_noise): 
                 checkpoint_filename = 'checkpoint_{:08d}_ddpg_ou_noise.pth.tar'.format(timestep + 1)
             checkpoint_path = checkpoint_dir / checkpoint_filename
-            
             checkpoint = {
                 'timestep': timestep + 1,
                 'episode': episode,
@@ -384,13 +384,13 @@ def main(cfg):
             checkpoint_paths.remove(checkpoint_path)
             for old_checkpoint_path in checkpoint_paths:
                 old_checkpoint_path.unlink()
-            '''
+            
             # Remove old policies
             checkpoint_paths = list(checkpoint_dir.glob('policy_*.pth.tar'))
-            checkpoint_paths.remove(checkpoint_path)
+            checkpoint_paths.remove(policy_path)
             for old_checkpoint_path in checkpoint_paths:
                 old_checkpoint_path.unlink()
-            '''
+            
 
 if __name__ == '__main__':
     t.backends.cudnn.benchmark = True

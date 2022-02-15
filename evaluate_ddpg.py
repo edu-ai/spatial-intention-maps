@@ -189,7 +189,7 @@ def run_eval(cfg, num_episodes=20):
     critic_t.load_state_dict(critic.state_dict())
     # Create env
     
-    env = utils.get_env_from_cfg(cfg, random_seed=random_seed, use_egl_renderer=False)
+    env = utils.get_env_from_cfg(cfg, random_seed=random_seed, use_egl_renderer=False,equal_distribution=False)
     gradient_norm_cut_off = np.inf 
     if cfg.grad_norm_clipping is not None:
         gradient_norm_cut_off = cfg.grad_norm_clipping
