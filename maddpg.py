@@ -4,8 +4,8 @@ import random
 import sys
 from pathlib import Path
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/usr/bin/ffmpeg"
-
-from machin.frame.algorithms import DDPG
+from copy import deepcopy
+from machin.frame.algorithms import MADDPG
 from machin.utils.logging import default_logger as logger
 import torch as t
 import torch.nn as nn
@@ -33,7 +33,7 @@ action_dim = 1
 action_low = -1 
 action_high = 1
 # number of agents in env, fixed, do not change
-agent_num = 4
+num_agents = 4
 
 
 
@@ -68,19 +68,21 @@ class Actor(nn.Module):
         state = state.view(state.size(0), -1)
         state = t.tanh(self.fc(state)) * self.action_range
         '''
+        print(state)
         state = self.resnet18.features(state)
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
-        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        print(state)
+        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv2(state)
         state = self.bn2(state)
         state = F.relu(state)
-        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
         
         state = t.flatten(state,start_dim=1)
-        state = t.cat([state, receptacle_num], 1)
+        state = t.cat([state], 1)
         #print(state.size())    
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
@@ -115,6 +117,7 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(128,1)
 
     def forward(self, state, action):
+        print(state)
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -128,11 +131,11 @@ class Critic(nn.Module):
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
-        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv2(state)
         state = self.bn2(state)
         state = F.relu(state)
-        state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
         state = self.conv3(state)
         state = t.flatten(state,start_dim=1)
         #state = self.avgpool(state) 
@@ -198,21 +201,22 @@ def step(states,cfg,madddpg,device,exploration_eps=None):
 def main(cfg): 
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
     actor = Actor(cfg.num_input_channels, 1,1).to(device)
-    critic = Critic(cfg.num_input_channels*num_agents, 1).to(device)
-
+    critic = Critic(cfg.num_input_channels*num_agents, 1*num_agents).to(device)
+    gradient_norm_cut_off = np.inf 
+    if cfg.grad_norm_clipping is not None:
+        gradient_norm_cut_off = cfg.grad_norm_clipping
     maddpg = MADDPG(
-        [deepcopy(actor) for _ in range(agent_num)],
-        [deepcopy(actor) for _ in range(agent_num)],
-        [deepcopy(critic) for _ in range(agent_num)],
-        [deepcopy(critic) for _ in range(agent_num)],
-        t.optim.Adam,
+        [deepcopy(actor) for _ in range(num_agents)],
+        [deepcopy(actor) for _ in range(num_agents)],
+        [deepcopy(critic) for _ in range(num_agents)],
+        [deepcopy(critic) for _ in range(num_agents)],
         optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, 
         learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,
         update_steps=1, discount=cfg.discount_factors[0],gradient_max = gradient_norm_cut_off, 
         replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay,
-        critic_visible_actors=[list(range(agent_num))] * agent_num,
+        critic_visible_actors=[list(range(num_agents))] * num_agents,
     )
-
+    env = utils.get_env_from_cfg(cfg)
     start_timestep = 0
     episode = 0
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
@@ -229,7 +233,7 @@ def main(cfg):
         terminal = False
         step = 0
         
-        tmp_observations_list = [[] for _ in range(agent_num)]
+        tmp_observations_list = [[] for _ in range(num_agents)]
         
         while not terminal and step <= max_steps:
             step += 1
