@@ -824,9 +824,9 @@ class VectorEnv:
     def _set_awaiting_new_action(self):
         if sum(robot.awaiting_new_action for robot in self.robots) == 0:
             for robot in self.robots:
-                if robot.is_idle():
-                    robot.awaiting_new_action = True
-                    break
+                #if robot.is_idle():
+                robot.awaiting_new_action = True
+                #    break
 
     def _execute_actions(self):
         sim_steps = 0
