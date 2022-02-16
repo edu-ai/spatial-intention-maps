@@ -28,33 +28,10 @@ import copy
 # in project root directory
 
 
-def create_env(env_name):
-    from multiagent.environment import MultiAgentEnv
-    import multiagent.scenarios as scenarios
 
-    # load scenario from script
-    scenario = scenarios.load(env_name + ".py").Scenario()
-    # create world
-    world = scenario.make_world()
-    # create multiagent environment
-    env = MultiAgentEnv(
-        world,
-        scenario.reset_world,
-        scenario.reward,
-        scenario.observation,
-        info_callback=None,
-        shared_viewer=False,
-    )
-    return env
-
-
-# configurations
-env = create_env("simple_spread")
-env.discrete_action_input = True
-observe_dim = env.observation_space[0].shape[0]
-action_num = env.action_space[0].n
-max_episodes = 1000
-max_steps = 200
+action_dim = 1
+action_low = -1 
+action_high = 1
 # number of agents in env, fixed, do not change
 agent_num = 4
 
@@ -313,4 +290,18 @@ def main(cfg):
                 'critic_state_dicts': [critic.state_dict() for critic in maddpg.critics]
             }
             t.save(policy_checkpoint, str(policy_path))
+
+if __name__ == '__main__':
+    t.backends.cudnn.benchmark = True
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config-path')
+    config_path = parser.parse_args().config_path
+    if config_path is None:
+        if sys.platform == 'darwin':
+            config_path = 'config/local/lifting_4-small_empty-local.yml'
+        else:
+            config_path = utils.select_run()
+    if config_path is not None:
+        config_path = utils.setup_run(config_path)
+        main(utils.load_config(config_path))
 
