@@ -231,7 +231,6 @@ def main(cfg):
         episode += 1
         total_reward = 0
         terminal = False
-        step = 0
         
         tmp_observations_list = [[] for _ in range(num_agents)]
             
