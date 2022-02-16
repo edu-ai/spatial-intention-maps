@@ -234,37 +234,34 @@ def main(cfg):
         step = 0
         
         tmp_observations_list = [[] for _ in range(num_agents)]
-        
-        while not terminal and step <= max_steps:
-            step += 1
-        
-            old_states = states
-            action_n,action_n_model = step(old_states,cfg,maddpg,device,exploration_eps)
-            # agent model inference
             
-            #actions = [int(r[0]) for r in results]
-            #action_probs = [r[1] for r in results]
+        old_states = states
+        action_n,action_n_model = step(old_states,cfg,maddpg,device,exploration_eps)
+        # agent model inference
+        
+        #actions = [int(r[0]) for r in results]
+        #action_probs = [r[1] for r in results]
 
-            states, rewards, terminals, _ = env.step(actions_n)
-            states = get_states(states,device)
+        states, rewards, terminals, _ = env.step(actions_n)
+        states = get_states(states,device)
 
-            for tmp_observations, ost, act, st, rew, term in zip(
-                tmp_observations_list,
-                old_states,
-                action_n_model,#action_probs,
-                states,
-                rewards,
-                terminals,
-            ):
-                tmp_observations.append(
-                    {
-                        "state": {"state": ost},
-                        "action": {"action": act},
-                        "next_state": {"state": st},
-                        "reward": float(rew),
-                        "terminal": term ,
-                    }
-                )
+        for tmp_observations, ost, act, st, rew, term in zip(
+            tmp_observations_list,
+            old_states,
+            action_n_model,#action_probs,
+            states,
+            rewards,
+            terminals,
+        ):
+            tmp_observations.append(
+                {
+                    "state": {"state": ost},
+                    "action": {"action": act},
+                    "next_state": {"state": st},
+                    "reward": float(rew),
+                    "terminal": term ,
+                }
+            )
 
         maddpg.store_episodes(tmp_observations_list)
         # total reward is divided by steps here, since:
