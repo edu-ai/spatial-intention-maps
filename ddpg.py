@@ -124,7 +124,7 @@ class Actor(nn.Module):
         
         state = t.flatten(state,start_dim=1)
         state = t.cat([state, receptacle_num], 1)
-        #print(state.size())    
+        print(state.size())    
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
         #print(state.size())

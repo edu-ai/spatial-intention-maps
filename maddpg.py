@@ -68,21 +68,19 @@ class Actor(nn.Module):
         state = state.view(state.size(0), -1)
         state = t.tanh(self.fc(state)) * self.action_range
         '''
-        print(state)
         state = self.resnet18.features(state)
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
-        print(state)
-        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = F.interpolate(state, scale_factor=2.0, mode='bilinear', align_corners=True)
         state = self.conv2(state)
         state = self.bn2(state)
         state = F.relu(state)
-        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = F.interpolate(state, scale_factor=2.0, mode='bilinear', align_corners=True)
         state = self.conv3(state)
         
         state = t.flatten(state,start_dim=1)
-        state = t.cat([state], 1)
+        #state = t.cat([state], 1)
         #print(state.size())    
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
@@ -92,7 +90,6 @@ class Actor(nn.Module):
         state = self.fc2(state) 
         state = F.relu(state)
         state = t.tanh(self.fc3(state)) * self.action_range
-
         return state
 
 
@@ -112,12 +109,11 @@ class Critic(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32,1, kernel_size=1, stride=1)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(96*96+1,512)
+        self.fc1 = nn.Linear(96*96+1*num_agents,512)
         self.fc2 = nn.Linear(512,128) 
         self.fc3 = nn.Linear(128,1)
 
     def forward(self, state, action):
-        print(state)
         '''
         state = self.resnet18.features(state)
         state = self.avgpool(state)
@@ -131,13 +127,14 @@ class Critic(nn.Module):
         state = self.conv1(state)
         state = self.bn1(state)
         state = F.relu(state)
-        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = F.interpolate(state, scale_factor=2.0, mode='bilinear', align_corners=True)
         state = self.conv2(state)
         state = self.bn2(state)
         state = F.relu(state)
-        #state = F.interpolate(state, scale_factor=2, mode='bilinear', align_corners=True)
+        state = F.interpolate(state, scale_factor=2.0, mode='bilinear', align_corners=True)
         state = self.conv3(state)
         state = t.flatten(state,start_dim=1)
+        #print(state.size())
         #state = self.avgpool(state) 
         #state = state.view(state.size(0), -1)
         #state_action = t.cat([state, receptacle_num], 1)
@@ -171,29 +168,30 @@ def get_states(state,device):
         if s is not None:
             states.append(apply_transform(s).to(device)) 
     return states
-def step(states,cfg,madddpg,device,exploration_eps=None):
+def step(states,cfg,maddpg,device,exploration_eps=None):
+    #print(type(states[0]))
     if(exploration_eps is None): 
         exploration_eps = cfg.final_exploration 
    
-    action_n_model = [ None for g in state[0]]
+    action_n_model = [ None for g in states[0]]
 
     with t.no_grad():
         #tmp_observations = [[None for _ in g] for g in state]
         
         
-        
-        results = maddpg.act(
-            [{"state": st} for st in states]
-        )
+        l = [{"state": st} for st in states]        
+        results = maddpg.act(l)
+        #print(results)
         action_n = [] 
         for action in results: 
             if ( random.random() < exploration_eps):
                 action = random.randrange(VectorEnv.get_action_space("pushing_robot"))
                 action = -1 +((action-0)/(VectorEnv.get_action_space("pushing_robot")-1))*(2)
             else: 
-                action = results 
+                #print("gotten rsult", results)
+                action = results[0].item()
             action_n.append(action )
-        action_n_model[i] = action_n
+        action_n_model[0] = action_n
 
         action_n = create_action_from_model_action(action_n_model)
         return action_n,action_n_model
@@ -201,6 +199,8 @@ def step(states,cfg,madddpg,device,exploration_eps=None):
 def main(cfg): 
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
     actor = Actor(cfg.num_input_channels, 1,1).to(device)
+    log_dir = Path(cfg.log_dir)
+    checkpoint_dir = Path(cfg.checkpoint_dir)
     critic = Critic(cfg.num_input_channels*num_agents, 1*num_agents).to(device)
     gradient_norm_cut_off = np.inf 
     if cfg.grad_norm_clipping is not None:
@@ -214,9 +214,9 @@ def main(cfg):
         learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,
         update_steps=1, discount=cfg.discount_factors[0],gradient_max = gradient_norm_cut_off, 
         replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay,
-        critic_visible_actors=[list(range(num_agents))] * num_agents,
+        critic_visible_actors=[list(range(num_agents))] * num_agents,use_jit=True
     )
-    env = utils.get_env_from_cfg(cfg)
+    env = utils.get_env_from_cfg(cfg,equal_distribution=False)
     start_timestep = 0
     episode = 0
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
@@ -229,7 +229,6 @@ def main(cfg):
         exploration_eps = 1 - (1 - cfg.final_exploration) * min(1, max(0, timestep - learning_starts) / (cfg.exploration_frac * cfg.total_timesteps))
 
         episode += 1
-        total_reward = 0
         terminal = False
         
         tmp_observations_list = [[] for _ in range(num_agents)]
@@ -241,42 +240,68 @@ def main(cfg):
         #actions = [int(r[0]) for r in results]
         #action_probs = [r[1] for r in results]
 
-        states, rewards, terminals, _ = env.step(actions_n)
+        states, rewards, terminals, info = env.step(action_n)
+        rewards = rewards[0]
+        action_n_model = action_n_model[0]
+        terminals = [terminals]*num_agents
+        states2 = deepcopy(states)
         states = get_states(states,device)
-
+        if(len(states) ==0): 
+            print(states2[0], terminals)
+        #print(action_n_model,len(states), len(old_states), rewards) 
         for tmp_observations, ost, act, st, rew, term in zip(
             tmp_observations_list,
             old_states,
+            
             action_n_model,#action_probs,
             states,
             rewards,
             terminals,
         ):
+            # print(t.tensor(act,dtype=t.float32).to(device).unsqueeze(0))
             tmp_observations.append(
                 {
                     "state": {"state": ost},
-                    "action": {"action": act},
+                    "action": {"action": t.tensor(act,dtype=t.float32).to(device).unsqueeze(0).view(1,1)},
                     "next_state": {"state": st},
                     "reward": float(rew),
                     "terminal": term ,
                 }
             )
-
+        #print(tmp_observations)
+        #print("adding", type(tmp_observations[0]), type(tmp_observations[1]), type(tmp_observations[2]), type(tmp_observations[3]))
+        '''
+        i = 0 
+        while(i< num_agents):
+            print(action_n_model)
+            tmp_observations_list.append(
+                 {
+                    "state":{"state":old_states[i]}, 
+                    "action": {"action":action_n_model[i]}, 
+                    "next_state": {"state": states[i]}, 
+                    "reward": float(rewards[i]), 
+                    "terminal": terminals[i]
+                 }
+            )
+            i+=1 
+        '''
+        
+        # print("len of actors", print(maddpg.actors))
         maddpg.store_episodes(tmp_observations_list)
         # total reward is divided by steps here, since:
         # "Agents are rewarded based on minimum agent distance
         #  to each landmark, penalized for collisions"
-        if done:
+        if terminals[0]:
             print(info["total_cubes"])
             states = env.reset()
             states = get_states(states,device)
             episode += 1
         
         # update, update more if episode is longer, else less
-        if timestep >= learning_starts and (timestep + 1) % cfg.train_freq == 0:
+        if timestep >= learning_starts and (timestep + 1) % 100 == 0:
             maddpg.update()
 
-        if (timestep + 1) % cfg.checkpoint_freq == 0 or timestep + 1 == total_timesteps_with_warm_up:
+        if (timestep + 1) % cfg.checkpoint_freq  == 0 or timestep + 1 == total_timesteps_with_warm_up:
             
             if not checkpoint_dir.exists():
                 checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -284,12 +309,33 @@ def main(cfg):
             # Save policy
             policy_filename = 'policy_{:08d}_maddpg.pth.tar'.format(timestep + 1)
             policy_path = checkpoint_dir / policy_filename
+            actor_policy = [] 
+            actor_policy_target =[] 
+            for actors in maddpg.actors: 
+                actor_temp = [] 
+                for actor in actors: 
+                    actor_temp.append(actor.state_dict())
+                actor_policy.append(actor_temp)
+            for actors_t in maddpg.actor_targets: 
+                actor_t_list = [] 
+                for actor in actors_t: 
+                    actor_t_list.append(actor.state_dict())
+                actor_policy_target.append(actor_t_list)
+
             policy_checkpoint = {
                 'timestep': timestep + 1,
-                'actor_state_dicts': [actor.state_dict() for actor in maddpg.actors],
+                'actor_state_dicts': actor_policy,#[actor.state_dict() for actor in maddpg.actors],
+                'actor_target_state_dicts': actor_policy_target, 
+                'critic_targets_state_dicts': [critic.state_dict() for critic in maddpg.critic_targets],
                 'critic_state_dicts': [critic.state_dict() for critic in maddpg.critics]
             }
             t.save(policy_checkpoint, str(policy_path))
+            cfg.policy_path = str(policy_path)
+            utils.save_config(log_dir / 'config.yml', cfg)
+            checkpoint_paths = list(checkpoint_dir.glob('policy_*.pth.tar'))
+            checkpoint_paths.remove(policy_path)
+            for old_checkpoint_path in checkpoint_paths:
+                old_checkpoint_path.unlink()
 
 if __name__ == '__main__':
     t.backends.cudnn.benchmark = True

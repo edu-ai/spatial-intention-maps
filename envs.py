@@ -332,7 +332,7 @@ class VectorEnv:
         ################################################################################
         # Compute items to return/
 
-        state = [[None for _ in g] for g in self.robot_groups] if done else self.get_state()
+        state = self.get_state()#[[None for _ in g] for g in self.robot_groups] if done else self.get_state()
         reward = [[robot.reward if (robot.awaiting_new_action or done) else None for robot in robot_group] for robot_group in self.robot_groups]
         info = {
             'steps': self.steps,
