@@ -16,7 +16,7 @@ import numpy as np
 import utils
 from envs import VectorEnv
 from torchvision import transforms
-
+from copy import deepcopy
 
 action_dim = 1
 action_low = -1 
@@ -159,8 +159,6 @@ def get_states(state,device):
     return states
 def step(states,cfg,maddpg):
     #print(type(states[0]))
-    if(exploration_eps is None): 
-        exploration_eps = cfg.final_exploration 
    
     action_n_model = [ None for g in states[0]]
 
@@ -186,8 +184,6 @@ def run_eval(cfg, num_episodes=20):
     random_seed = 0
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
     actor = Actor(cfg.num_input_channels, 1,1).to(device)
-    log_dir = Path(cfg.log_dir)
-    checkpoint_dir = Path(cfg.checkpoint_dir)
     critic = Critic(cfg.num_input_channels*num_agents, 1*num_agents).to(device)
     gradient_norm_cut_off = np.inf 
     
