@@ -216,6 +216,27 @@ def main(cfg):
         replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay,
         critic_visible_actors=[list(range(num_agents))] * num_agents,use_jit=True
     )
+
+    if cfg.checkpoint_path is not None:
+        print("loading",cfg.policy_path)
+
+        policy_checkpoint = t.load(cfg.policy_path, map_location=device)   
+        for i, actors  in enumerate(maddpg.actors): 
+                for j,actor in enumerate(actors): 
+                    actor.load_state_dict(policy_checkpoint["actor_state_dicts"][i][j])
+
+        for i,actors_t in enumerate(maddpg.actor_targets): 
+            for actor in enumerate(actors_t): 
+                actor.load_state_dict(policy_checkpoint["actor_target_state_dicts"][i][j])
+            
+            
+        for i,critic in enumerate(maddpg.critic_targets): 
+            critic.load_state_dict(policy_checkpoint["critic_targets_state_dicts"][i])
+       
+        for i,critic in enumerate(maddpg.critics): 
+            critic.load_state_dict(policy_checkpoint["critic_state_dicts"][i])
+    
+    
     env = utils.get_env_from_cfg(cfg,equal_distribution=False)
     start_timestep = 0
     episode = 0
