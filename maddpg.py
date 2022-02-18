@@ -216,13 +216,13 @@ def main(cfg):
         replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay,
         critic_visible_actors=[list(range(num_agents))] * num_agents,use_jit=True
     )
-
-    if cfg.checkpoint_path is not None:
+    p = 0 
+    if cfg.policy_path is not None:
         print("loading",cfg.policy_path)
 
         policy_checkpoint = t.load(cfg.policy_path, map_location=device)   
         for i, actors  in enumerate(maddpg.actors): 
-                for j,actor in enumerate(actors): 
+                for j,actor in enumerate(actors):
                     actor.load_state_dict(policy_checkpoint["actor_state_dicts"][i][j])
 
         for i,actors_t in enumerate(maddpg.actor_targets): 
@@ -235,14 +235,15 @@ def main(cfg):
        
         for i,critic in enumerate(maddpg.critics): 
             critic.load_state_dict(policy_checkpoint["critic_state_dicts"][i])
-    
+        p  = 1
     
     env = utils.get_env_from_cfg(cfg,equal_distribution=False)
-    start_timestep = 0
+    start_timestep = 240000
     episode = 0
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
-    
+    if(p == 1): 
+        print("loaded from checkpoint")
     states = env.reset()
     states = get_states(states,device)
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
