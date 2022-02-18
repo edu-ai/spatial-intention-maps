@@ -199,43 +199,45 @@ def step(states,cfg,maddpg,device,exploration_eps=None):
 def main(cfg): 
     device = t.device('cuda' if t.cuda.is_available() else 'cpu')
     actor = Actor(cfg.num_input_channels, 1,1).to(device)
+    actors = [deepcopy(actor) for _ in range(num_agents)]
+    actors_target = [deepcopy(actor) for _ in range(num_agents)]
+    critic = Critic(cfg.num_input_channels*num_agents, 1*num_agents).to(device)
+    critics = [deepcopy(critic) for _ in range(num_agents)] 
+    critic_targets = [deepcopy(critic) for _ in range(num_agents)]
+
     log_dir = Path(cfg.log_dir)
     checkpoint_dir = Path(cfg.checkpoint_dir)
-    critic = Critic(cfg.num_input_channels*num_agents, 1*num_agents).to(device)
     gradient_norm_cut_off = np.inf 
     if cfg.grad_norm_clipping is not None:
         gradient_norm_cut_off = cfg.grad_norm_clipping
+
+    if cfg.policy_path is not None:
+        print("loading",cfg.policy_path)
+
+        policy_checkpoint = t.load(cfg.policy_path, map_location=device)   
+        for i, actor_mod  in enumerate(actors): 
+            actor_mod.load_state_dict(policy_checkpoint["actor_state_dicts"][i][0])
+        
+        for i,actors_t in enumerate(actors_target): 
+            actors_t.load_state_dict(policy_checkpoint["actor_target_state_dicts"][i][0])            
+            
+        for i,critic in enumerate(critic_targets): 
+            critic.load_state_dict(policy_checkpoint["critic_targets_state_dicts"][i])
+       
+        for i,critic in enumerate(critics): 
+            critic.load_state_dict(policy_checkpoint["critic_state_dicts"][i])
+    
     maddpg = MADDPG(
-        [deepcopy(actor) for _ in range(num_agents)],
-        [deepcopy(actor) for _ in range(num_agents)],
-        [deepcopy(critic) for _ in range(num_agents)],
-        [deepcopy(critic) for _ in range(num_agents)],
+        actors,
+        actors_target,
+        critic,
+        critic_targets,
         optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, 
         learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,
         update_steps=1, discount=cfg.discount_factors[0],gradient_max = gradient_norm_cut_off, 
         replay_size = cfg.replay_buffer_size,momentum=0.9,weight_decay=cfg.weight_decay,
         critic_visible_actors=[list(range(num_agents))] * num_agents,use_jit=True
     )
-    p = 0 
-    if cfg.policy_path is not None:
-        print("loading",cfg.policy_path)
-
-        policy_checkpoint = t.load(cfg.policy_path, map_location=device)   
-        for i, actors  in enumerate(maddpg.actors): 
-                for j,actor in enumerate(actors):
-                    actor.load_state_dict(policy_checkpoint["actor_state_dicts"][i][j])
-
-        for i,actors_t in enumerate(maddpg.actor_targets): 
-            for actor in enumerate(actors_t): 
-                actor.load_state_dict(policy_checkpoint["actor_target_state_dicts"][i][j])
-            
-            
-        for i,critic in enumerate(maddpg.critic_targets): 
-            critic.load_state_dict(policy_checkpoint["critic_targets_state_dicts"][i])
-       
-        for i,critic in enumerate(maddpg.critics): 
-            critic.load_state_dict(policy_checkpoint["critic_state_dicts"][i])
-        p  = 1
     
     env = utils.get_env_from_cfg(cfg,equal_distribution=False)
     start_timestep = 240000
