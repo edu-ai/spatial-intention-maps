@@ -190,8 +190,6 @@ def run_eval(cfg, num_episodes=20):
     critics = [deepcopy(critic) for _ in range(num_agents)] 
     critic_targets = [deepcopy(critic) for _ in range(num_agents)]
 
-    log_dir = Path(cfg.log_dir)
-    checkpoint_dir = Path(cfg.checkpoint_dir)
     gradient_norm_cut_off = np.inf 
     if cfg.grad_norm_clipping is not None:
         gradient_norm_cut_off = cfg.grad_norm_clipping
@@ -215,7 +213,7 @@ def run_eval(cfg, num_episodes=20):
     maddpg = MADDPG(
         actors,
         actors_target,
-        critic,
+        critics,
         critic_targets,
         optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, 
         learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,

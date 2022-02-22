@@ -208,6 +208,7 @@ def main(cfg):
     log_dir = Path(cfg.log_dir)
     checkpoint_dir = Path(cfg.checkpoint_dir)
     gradient_norm_cut_off = np.inf 
+    start_timestep = 300000
     if cfg.grad_norm_clipping is not None:
         gradient_norm_cut_off = cfg.grad_norm_clipping
 
@@ -226,11 +227,11 @@ def main(cfg):
        
         for i,critic in enumerate(critics): 
             critic.load_state_dict(policy_checkpoint["critic_state_dicts"][i])
-    
+         
     maddpg = MADDPG(
         actors,
         actors_target,
-        critic,
+        critics,
         critic_targets,
         optimizer=t.optim.SGD, criterion=F.smooth_l1_loss, 
         learning_rate = cfg.learning_rate,batch_size=cfg.batch_size,update_rate=None,
@@ -240,12 +241,9 @@ def main(cfg):
     )
     
     env = utils.get_env_from_cfg(cfg,equal_distribution=False)
-    start_timestep = 240000
     episode = 0
     learning_starts = np.round(cfg.learning_starts_frac * cfg.total_timesteps).astype(np.uint32)
     total_timesteps_with_warm_up = learning_starts + cfg.total_timesteps
-    if(p == 1): 
-        print("loaded from checkpoint")
     states = env.reset()
     states = get_states(states,device)
     for timestep in tqdm(range(start_timestep, total_timesteps_with_warm_up), initial=start_timestep, total=total_timesteps_with_warm_up, file=sys.stdout):
