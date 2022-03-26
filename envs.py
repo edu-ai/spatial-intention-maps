@@ -550,6 +550,7 @@ class VectorEnv:
                 else:
                     robot = Robot.get_robot(robot_type, self, robot_group_index)
                 self.robots.append(robot)
+                
                 self.robot_groups[robot_group_index].append(robot)
                 self.robot_ids.append(robot.id)
 
@@ -876,6 +877,7 @@ class VectorEnv:
             for robot in self.robots:
                 robot.controller.disconnect()
 
+index21 = 0 
 class Robot(ABC):
     HALF_WIDTH = 0.03
     BACKPACK_OFFSET = -0.0135
@@ -893,7 +895,13 @@ class Robot(ABC):
         self.env = env
         self.group_index = group_index
         self.real = real
-        self.id = self._create_multi_body()
+        global index21 
+        if(index21 == 0): 
+            self.id = self._create_multi_body()
+            print("firs tindex is " ,self.id)
+            index21+=1
+        else: 
+             self.id = self._create_multi_body()
         self.cid = self.env.p.createConstraint(self.id, -1, -1, -1, pybullet.JOINT_FIXED, None, (0, 0, 0), (0, 0, 0))
         self._last_step_simulation_count = -1  # Used to determine whether pose is out of date
         self._position_raw = None  # Most current position, not to be directly accessed (use self.get_position())
@@ -1109,7 +1117,7 @@ class Robot(ABC):
         self._heading = orientation_to_heading(orientation)
         self._last_step_simulation_count = self.env.step_simulation_count
 
-    def _create_multi_body(self):
+    def _create_multi_body(self,index = -1):
         base_height = 0.035
         mass = 0.180
         shape_types = [pybullet.GEOM_CYLINDER, pybullet.GEOM_BOX, pybullet.GEOM_BOX]
@@ -1120,7 +1128,11 @@ class Robot(ABC):
             (Robot.TOP_LENGTH / 2, Robot.HALF_WIDTH, Robot.HEIGHT / 2),
         ]
         lengths = [Robot.HEIGHT, None, None]
+            
         rgba_colors = [self.COLOR, None, None]  # pybullet seems to ignore all colors after the first
+        if(index == 0): 
+            rgba_colors = [(0.5294, 0.5294, 0.5294, 1) , None, None]
+        
         frame_positions = [
             (Robot.BACKPACK_OFFSET, 0, Robot.HEIGHT / 2),
             (Robot.BACKPACK_OFFSET + self.BASE_LENGTH / 2, 0, base_height / 2),
@@ -1152,6 +1164,7 @@ class PushingRobot(Robot):
     BASE_LENGTH = Robot.BASE_LENGTH + 0.005  # 5 mm blade
     END_EFFECTOR_LOCATION = Robot.BACKPACK_OFFSET + BASE_LENGTH
     RADIUS = math.sqrt(Robot.HALF_WIDTH**2 + END_EFFECTOR_LOCATION**2)
+   
     COLOR = (0.1765, 0.1765, 0.1765, 1)  # Dark gray
 
     def __init__(self, *args, **kwargs):
@@ -2184,6 +2197,11 @@ class Mapper:
         # Overhead map
         global_overhead_map = self._create_global_overhead_map()
         local_overhead_map = self._get_local_map(global_overhead_map)
+        if(self.robot.id == 12): 
+            print(self.robot.id)
+            plt.imshow(global_overhead_map,interpolation='none')
+            plt.show(block=False)
+            plt.pause(.001)
         channels.append(local_overhead_map)
 
         # Robot map
@@ -2225,7 +2243,11 @@ class Mapper:
         if self.env.use_intention_map:
             global_intention_map = self._create_global_intention_or_history_map(encoding=self.env.intention_map_encoding)
             local_intention_map = self._get_local_map(global_intention_map)
-            
+            #if(self.robot.id == 12): 
+            #    print(self.robot.id)
+            #    plt.imshow(global_intention_map,interpolation='none')
+            #    plt.show(block=False)
+            #    plt.pause(.001)
             channels.append(local_intention_map)
 
         # Baseline intention channels

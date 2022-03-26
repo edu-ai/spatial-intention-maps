@@ -1,0 +1,32 @@
+Trained_model,Label,Extra information
+20220215T231623912054-pushing_4-small_divider-ours-original,DQN Small obstacle + no spatial intent,
+20220215T063413269718-pushing_4-small_divider-ours-original-no-spatial-intent_900000,DDPG Small obstacle + no spatial intent + 900000,
+20220215T063413269718-pushing_4-small_divider-ours-original-no-spatial-intent_600000,DDPG Small obstacle + no spatial intent + 600000,spatial42
+20220215T063413269718-pushing_4-small_divider-ours-original-no-spatial-intent,DDPG Small obstacle + no spatial intent,
+20220215T232034418645-pushing_4-small_divider-ours-original,DQN Big obstacle + no spatial intent,
+20220214T203627985598-pushing_4-small_divider-ours-original-no-spatial-intent,DDPG Big obstacle + no spatial intent,
+20220212T195909602578-pushing_4-small_divider-ours-original,DDPG equal distribution + OU exploration + spatial intent + big obstacle,
+20220212T175537990040-pushing_4-small_divider-ours-original,DDPG equal distribution + epsilon exploration + spatial intent + big obstacle,
+20220213T073359978229-pushing_4-small_divider-ours-original,DDPG equal distribution + epsilon exploration + no spatial intent + big obstacle,
+20220213T180107299669-pushing_4-small_divider-no-spatial-map-closest_cube_map-closest_cube_reward,DDPG equal distribution + epsilon exploration + no spatial intent + closest cube map +  custom reward + big obstacle,
+20220213T180107299669-pushing_4-small_divider-no-spatial-map-closest_cube_map-closest_cube_reward_600000,DDPG equal distribution + epsilon exploration + no spatial intent + closest cube map +  custom reward + big obstacle + 600000,
+20220213T180107299669-pushing_4-small_divider-no-spatial-map-closest_cube_map-closest_cube_reward_400000,DDPG equal distribution + epsilon exploration + no spatial intent + closest cube map +  custom reward + big obstacle + 400000,spatial41
+20220213T180107299669-pushing_4-small_divider-no-spatial-map-closest_cube_map-closest_cube_reward_900000,DDPG equal distribution + epsilon exploration + no spatial intent + closest cube map +  custom reward + big obstacle + 400000,spatial45
+20220213T073411676355-pushing_4-small_empty-original-closest_cube_map-closest_cube_reward,DDPG equal distribution + epsilon exploration + no spatial intent + closest cube map +  custom reward + empty room,
+20220217T121109274705-pushing_4-small_divider-ours-original_240000,MADDPG Big obstacle + spatial intent + 240000 steps,spatial36
+20220217T121109274705-pushing_4-small_divider-ours-original_300000,MADDPG Big obstacle + spatial intent + 300000 steps,spatial36_t
+20220217T121109274705-pushing_4-small_divider-ours-original_400000,MADDPG Big obstacle + spatial intent + 400000 steps,spatial42
+20220217T121109274705-pushing_4-small_divider-ours-original_600000,MADDPG Big obstacle + spatial intent + 600000 steps,spatial43
+20220218T105828582963-pushing_4-small_divider-ours-original-no-spatial-intent-no-closest-map_240000,MADDPG Big obstacle + no spatial intent + no closest map +  240000 steps,spatial37
+20220218T105828582963-pushing_4-small_divider-ours-original-no-spatial-intent-no-closest-map_300000,MADDPG Big obstacle + no spatial intent + no closest map +  340000 steps,spatial38
+20220218T105828582963-pushing_4-small_divider-ours-original-no-spatial-intent-no-closest-map_600000,MADDPG Big obstacle + no spatial intent + no closest map +  640000 steps,spatial40
+20220223T231736340934-pushing_4-small_divider-ours-original-no-spatial-intent-no-closest-map_900000,MADDPG Big obstacle + no spatial intent + no closest map +  940000 steps,spatial44
+20220301T102418854728-pushing_4-small_divider-ours-original_340000,DQN Big obstacle + spatial intent+340000,
+20220301T102418854728-pushing_4-small_divider-ours-original,DQN Big obstacle + spatial intent,
+20220301T102454560504-pushing_4-small_divider-ours-closest_cube_map_only,DQN Big obstacle + closest cube only ,
+20220305T151800611096-pushing_4-small_divider-ours,DQN Big obstacle + closest cube only 240000 2,
+20220305T151800611096-pushing_4-small_divider-ours_340000,DQN Big obstacle + closest cube only 340000 2,
+20220306T130901430675-pushing_4-small_divider-ours,DDPG Big obstacle + closest cube only ,
+20220306T130901430675-pushing_4-small_divider-ours_340000,DDPG Big obstacle + closest cube only + 340000,
+20220307T194519254398-pushing_4-small_divider-ours-original,DDPG Big obstacle + original ,
+20220320T220032958474-pushing_4-small_divider-ours-original,DDPG Big obstacle + OU exploration + original,
