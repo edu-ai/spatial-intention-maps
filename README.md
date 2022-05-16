@@ -23,7 +23,7 @@ python setup.py build_ext --inplace
 
 ## Quickstart
 
-[`Please use the following drive link to download the pretrained model for DDPG agents`](https://drive.google.com/file/d/14eQEg1owN4b243NN_QK1eqLZHNM0G0ui/view?usp=sharing) 
+Please use the following [`drive`](https://drive.google.com/file/d/14eQEg1owN4b243NN_QK1eqLZHNM0G0ui/view?usp=sharing) link to download the pretrained model for DDPG agents 
 ```bash
 
 # 4 pushing robots
