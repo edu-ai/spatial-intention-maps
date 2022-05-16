@@ -23,7 +23,7 @@ python setup.py build_ext --inplace
 
 ## Quickstart
 
-Please use the following drive link to download the pretrained model for DDPG (https://drive.google.com/file/d/14eQEg1owN4b243NN_QK1eqLZHNM0G0ui/view?usp=sharing) 
+[Please use the following drive link to download the pretrained model for DDPG agents] (https://drive.google.com/file/d/14eQEg1owN4b243NN_QK1eqLZHNM0G0ui/view?usp=sharing) 
 ```bash
 
 # 4 pushing robots
@@ -44,10 +44,10 @@ The training script will create a log directory and checkpoint directory for the
 
 ### Evaluation
 
-Trained policies can be evaluated using the `evaluate.py` script, which takes in the config path for the training run. For example, to evaluate the `SmallDivider` pretrained policy, you can run:
+Trained policies can be evaluated using the `evaluate.py` script, which takes in the config path for the training run. For example, to evaluate the DDPG agent pretrained policy, you can run:
 
 ```
-python evaluate.py --config-path logs/20220215T063413269718-pushing_4-small_divider-ours-original-no-spatial-intent_600000/config.yml
+python evaluate_ddpg.py --config-path logs/20220307T194519254398-pushing_4-small_divider-ours-original/config.yml
 ```
 
 This will load the trained policy from the specified training run, and run evaluation on it. The results are saved to an `.npy` file in the `eval` directory. You can then run `jupyter notebook` and navigate to [`eval_summary.ipynb`](eval_summary.ipynb) to load the `.npy` files and generate tables and plots of the results.
