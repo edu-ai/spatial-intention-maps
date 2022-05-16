@@ -39,7 +39,7 @@ python enjoy.py --config-path logs/20201217T171253620771-pushing_4-large_empty-o
 ```
 
 
-## Training in the Simulation Environment
+## Training in the 3D Simulator
 
 The [`config/experiments`](config/experiments) directory contains the template config files used for all experiments in the paper. To start a training run, you can provide one of the template config files to the `train.py` script. For example, the following will train a policy on the `SmallDivider` environment:
 
@@ -71,10 +71,9 @@ For different algorithms to test please use the following branches and training 
 
 For DDQN and MADDPG, please install the custom machin library in this organisation 
 
-## Citation
+## References
 
-If you find this work useful for your research, please consider citing:
-
+Adapted from: 
 ```
 @inproceedings{wu2021spatial,
   title = {Spatial Intention Maps for Multi-Agent Mobile Manipulation},
