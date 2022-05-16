@@ -23,19 +23,11 @@ python setup.py build_ext --inplace
 
 ## Quickstart
 
-We provide pretrained policies for each test environment. The `download-pretrained.sh` script will download the pretrained policies and save their configs and network weights into the `logs` and `checkpoints` directories, respectively. Use the following command to run it:
-
-```bash
-./download-pretrained.sh
-```
-
-You can then use `enjoy.py` to run a pretrained policy in the simulation environment. Here are a few examples you can try:
-
+Please use the following drive link to download the pretrained model for DDPG (https://drive.google.com/file/d/14eQEg1owN4b243NN_QK1eqLZHNM0G0ui/view?usp=sharing) 
 ```bash
 
 # 4 pushing robots
-python enjoy.py --config-path logs/20201214T092814688334-pushing_4-small_divider-ours/config.yml
-python enjoy.py --config-path logs/20201217T171253620771-pushing_4-large_empty-ours/config.yml
+python enjoy_ddpg.py --config-path logs/20220307T194519254398-pushing_4-small_divider-ours-original/config.yml
 ```
 
 
@@ -55,7 +47,7 @@ The training script will create a log directory and checkpoint directory for the
 Trained policies can be evaluated using the `evaluate.py` script, which takes in the config path for the training run. For example, to evaluate the `SmallDivider` pretrained policy, you can run:
 
 ```
-python evaluate.py --config-path logs/20201217T171233203789-lifting_4-small_divider-ours/config.yml
+python evaluate.py --config-path logs/20220215T063413269718-pushing_4-small_divider-ours-original-no-spatial-intent_600000/config.yml
 ```
 
 This will load the trained policy from the specified training run, and run evaluation on it. The results are saved to an `.npy` file in the `eval` directory. You can then run `jupyter notebook` and navigate to [`eval_summary.ipynb`](eval_summary.ipynb) to load the `.npy` files and generate tables and plots of the results.
@@ -70,6 +62,7 @@ For different algorithms to test please use the following branches and training 
 - MADDPG: Branch: maddpg_final |  train script: maddpg.py | test script: evaluate_maddpg.py
 
 For DDQN and MADDPG, please install the custom machin library in this organisation 
+
 
 ## References
 
