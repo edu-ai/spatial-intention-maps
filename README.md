@@ -248,6 +248,15 @@ Once you have verified that manual control with `tools_simple_gui.py` works, you
 python enjoy.py --config-path logs/20201217T171233203789-lifting_4-small_divider-ours/config.yml --real --real-robot-indices 0,1,2,3 --real-cube-indices 0,1,3,5,6,7,8,9,10,11
 ```
 
+
+For different algorithms to test please use the following branches and training script : 
+
+- DDPG: Branch: ddpg_final |  train script: ddpg.py | test script: evaluate_ddpg.py 
+- DDQN: Branch: ddqn_final |  train script: train.py | test script: evaluate.py 
+- MADDPG: Branch: maddpg_final |  train script: maddpg.py | test script: evaluate_maddpg.py
+
+For DDQN and MADDPG, please install the custom machin library in this organisation 
+
 ## Citation
 
 If you find this work useful for your research, please consider citing:
